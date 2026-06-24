@@ -16,6 +16,7 @@ from .interaction import (
     Camera3DState,
     CameraProjection,
     MatlabLikeAxesBase,
+    PlotSeries,
     TickDirection,
     XAxisLocation,
     YAxisLocation,
@@ -93,6 +94,18 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.tick_length_points_per_unit = 350.0
         if axes is not None:
             self.on_active_axes_changed(axes)
+
+    def draw_plot_series(self, axes: Any, series: list[PlotSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = dict(item.properties)
+            if item.style is None:
+                created = axes.plot(item.x, item.y, **kwargs)
+            else:
+                created = axes.plot(item.x, item.y, item.style, **kwargs)
+            artists.extend(created if isinstance(created, list) else list(created))
+        self._draw_idle(axes)
+        return artists
 
     def clear_children(self, axes: Any, reset_properties: bool) -> None:
         self.clear_axes_interaction_state(axes)

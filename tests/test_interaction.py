@@ -9,6 +9,7 @@ from py_matlab_style_plotter import (
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
+    PlotSeries,
     PointerEvent,
     ToolState,
 )
@@ -80,6 +81,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.zoom_box_events = []
         self.brush_box_events = []
         self.brushes = []
+        self.drawn_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -121,6 +123,10 @@ class FakePlotter(MatlabLikeAxesBase):
 
     def clear_children(self, axes, reset_properties):
         axes.clear_calls.append(reset_properties)
+
+    def draw_plot_series(self, axes, series):
+        self.drawn_series.append((axes, tuple(series)))
+        return [f"line-{len(self.drawn_series)}-{index}" for index, _item in enumerate(series)]
 
     def reset_axes_properties(self, axes):
         axes.aspect = "auto"
@@ -700,6 +706,43 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.hold("on")
         plotter.prepare_for_plot()
         self.assertEqual(axes.clear_calls, [True, False])
+
+    def test_plot_normalizes_matlab_like_series_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.plot([1, 2, 3], [2, 4, 6], [3, 4], [5, 6], "r--", linewidth=2)
+
+        self.assertEqual(artists, ["line-1-0", "line-1-1"])
+        self.assertEqual(axes.clear_calls, [True])
+        self.assertEqual(len(plotter.drawn_series), 1)
+        _axes, series = plotter.drawn_series[0]
+        self.assertEqual(
+            series,
+            (
+                PlotSeries((1.0, 2.0, 3.0), (2.0, 4.0, 6.0), None, (("linewidth", 2),)),
+                PlotSeries((3.0, 4.0), (5.0, 6.0), "r--", (("linewidth", 2),)),
+            ),
+        )
+        self.assertEqual(axes.autoscale_calls, [False])
+        self.assertGreaterEqual(len(plotter.view_stack), 1)
+
+    def test_plot_respects_hold_add(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+        plotter.hold("on")
+
+        plotter.plot([1, 2, 3])
+
+        self.assertEqual(axes.clear_calls, [])
+        self.assertEqual(plotter.drawn_series[0][1][0].x, (1.0, 2.0, 3.0))
+        self.assertEqual(plotter.drawn_series[0][1][0].y, (1.0, 2.0, 3.0))
+
+    def test_plot_rejects_mismatched_x_y_lengths(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "same length"):
+            plotter.plot([1, 2], [1])
 
     def test_prepare_replace_restores_default_grid_box_and_legend_state(self):
         axes = FakeAxes()

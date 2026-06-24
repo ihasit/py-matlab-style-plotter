@@ -238,6 +238,9 @@ class FakeAxes:
         self.camera_target = (4.0, 5.0, 6.0) if is_3d else None
         self.camera_up_vector = (0.0, 0.0, 1.0) if is_3d else None
         self._proj_type = "ortho"
+        self.plot_calls = []
+        self.relim_count = 0
+        self.autoscale_view_calls = []
         self.spines = (
             {
                 "left": FakeSpine("black", 1.0),
@@ -257,6 +260,22 @@ class FakeAxes:
         for spine in self.spines.values():
             spine.set_edgecolor("black")
             spine.set_linewidth(1.0)
+
+    def plot(self, x, y, *args, **kwargs):
+        label = str(kwargs.get("label", "series"))
+        line = FakeLine(tuple(x), tuple(y), label=label)
+        line.style_args = args
+        line.kwargs = kwargs
+        line.axes = self
+        self.lines.append(line)
+        self.plot_calls.append((tuple(x), tuple(y), args, kwargs))
+        return [line]
+
+    def relim(self):
+        self.relim_count += 1
+
+    def autoscale_view(self, tight=False):
+        self.autoscale_view_calls.append(tight)
 
     def get_xlim(self):
         return self._xlim
@@ -458,6 +477,41 @@ class RecordingCoordinatePlotter(MatplotlibAxesPlotter):
 
 
 class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
+    def test_plot_draws_matlab_like_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        stale_line = FakeLine([0.0], [0.0], label="old")
+        axes.set_lines([stale_line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.plot([0, 1], [2, 3], "k:", [4, 5], label="signal", linewidth=2)
+
+        self.assertNotIn(stale_line, axes.lines)
+        self.assertEqual(len(artists), 2)
+        self.assertEqual(
+            axes.plot_calls,
+            [
+                ((0.0, 1.0), (2.0, 3.0), ("k:",), {"label": "signal", "linewidth": 2}),
+                ((1.0, 2.0), (4.0, 5.0), (), {"label": "signal", "linewidth": 2}),
+            ],
+        )
+        self.assertEqual(axes.relim_count, 1)
+        self.assertEqual(axes.autoscale_view_calls, [False])
+        self.assertGreater(axes.figure.canvas.draw_count, 0)
+
+    def test_plot_respects_matplotlib_hold_add(self):
+        axes = FakeAxes()
+        existing = FakeLine([0.0], [0.0], label="old")
+        axes.set_lines([existing])
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.hold("on")
+
+        plotter.plot([7, 8])
+
+        self.assertFalse(existing.removed)
+        self.assertEqual(len(axes.lines), 2)
+        self.assertEqual(axes.plot_calls[0][0], (1.0, 2.0))
+        self.assertEqual(axes.plot_calls[0][1], (7.0, 8.0))
+
     def test_prepare_replace_clears_target_axes_interaction_state(self):
         axes1 = FakeAxes()
         axes2 = FakeAxes()

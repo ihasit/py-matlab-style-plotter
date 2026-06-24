@@ -259,6 +259,16 @@ class ToolState:
 
 
 @dataclass(frozen=True)
+class PlotSeries:
+    """One normalized MATLAB-like ``plot`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class PointerEvent:
     """Backend-neutral pointer event.
 
@@ -580,6 +590,52 @@ class MatlabLikeAxesBase:
 
         return self._set_tool_mode(InteractionMode.BRUSH, value)
 
+    def plot(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like 2D line series on an axes.
+
+        This template method owns MATLAB's axes lifecycle around plotting:
+        active-axes selection, ``NextPlot``/``hold`` clearing, autoscaling, and
+        view-history updates. Backends implement ``draw_plot_series`` for the
+        actual line creation.
+        """
+
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_plot_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_plot_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+    def normalize_plot_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PlotSeries]:
+        """Normalize common MATLAB ``plot`` calling forms into line series."""
+
+        if not args:
+            raise ValueError("plot requires at least one data argument")
+        properties = tuple((str(key), value) for key, value in (kwargs or {}).items())
+        series: list[PlotSeries] = []
+        index = 0
+        while index < len(args):
+            first = args[index]
+            if isinstance(first, str):
+                raise ValueError(f"Unexpected line style without data at argument {index + 1}")
+            if index + 1 < len(args) and not isinstance(args[index + 1], str):
+                x_values = self._numeric_vector(first, f"argument {index + 1}")
+                y_values = self._numeric_vector(args[index + 1], f"argument {index + 2}")
+                index += 2
+            else:
+                y_values = self._numeric_vector(first, f"argument {index + 1}")
+                x_values = tuple(float(item) for item in range(1, len(y_values) + 1))
+                index += 1
+            if len(x_values) != len(y_values):
+                raise ValueError("x and y data must have the same length")
+            style = None
+            if index < len(args) and isinstance(args[index], str):
+                style = args[index]
+                index += 1
+            series.append(PlotSeries(x_values, y_values, style, properties))
+        return series
+
     def title(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
         return self._text_property("title", value, axes)
 
@@ -625,6 +681,21 @@ class MatlabLikeAxesBase:
             return tuple(str(item) for item in value)
         except TypeError:
             return (str(value),)
+
+    def _numeric_vector(self, value: Any, label: str) -> tuple[float, ...]:
+        if isinstance(value, (str, bytes)):
+            raise ValueError(f"{label} must be a numeric vector")
+        try:
+            vector = tuple(float(item) for item in value)
+        except TypeError:
+            vector = (float(value),)
+        except ValueError as exc:
+            raise ValueError(f"{label} must be a numeric vector") from exc
+        if not vector:
+            return ()
+        if not all(isfinite(item) for item in vector):
+            raise ValueError(f"{label} must contain only finite numeric values")
+        return vector
 
     def _set_tool_mode(self, mode: InteractionMode, value: bool | str | None) -> InteractionMode:
         if value is None:
@@ -3401,6 +3472,11 @@ class MatlabLikeAxesBase:
 
     def end_brush_box(self) -> None:
         """Hook for clearing rubber-band brush-box visualization."""
+
+    def draw_plot_series(self, axes: Any, series: Sequence[PlotSeries]) -> list[Any]:
+        """Draw normalized line series for the concrete backend."""
+
+        raise NotImplementedError
 
     def clear_children(self, axes: Any, reset_properties: bool) -> None:
         """Clear plot children for the concrete backend."""
