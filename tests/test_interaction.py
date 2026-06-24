@@ -12,6 +12,7 @@ from py_matlab_style_plotter import (
     ErrorBarSeries,
     FillSeries,
     HistogramSeries,
+    ImageSeries,
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
@@ -102,6 +103,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_histogram_series = []
         self.drawn_constant_line_series = []
         self.drawn_text_series = []
+        self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -187,6 +189,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_text_series(self, axes, series):
         self.drawn_text_series.append((axes, tuple(series)))
         return [f"text-{len(self.drawn_text_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_image_series(self, axes, series):
+        self.drawn_image_series.append((axes, tuple(series)))
+        return [f"image-{len(self.drawn_image_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1387,6 +1393,53 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         drawn_axes, series = plotter.drawn_text_series[0]
         self.assertIs(drawn_axes, axes2)
         self.assertEqual(series[0], TextSeries(1.0, 2.0, 3.0, ("label",), ()))
+
+    def test_imagesc_normalizes_cdata_and_runs_plot_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.imagesc([[1, 2], [3, 4]], "DisplayName", "img")
+
+        self.assertEqual(artists, ["image-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_image_series[0]
+        self.assertEqual(series[0], ImageSeries(((1.0, 2.0), (3.0, 4.0)), None, None, (("label", "img"),)))
+        self.assertEqual(axes.autoscale_clim_calls, 1)
+        self.assertEqual(axes.autoscale_calls, [False])
+
+    def test_imagesc_accepts_x_y_and_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.imagesc(axes2, [10, 20], [30, 40], [[1, 2], [3, 4]])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_image_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+
+    def test_imagesc_does_not_autoscale_clim_in_manual_mode(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+        plotter.clim("manual")
+        plotter.hold("on")
+        axes.autoscale_clim_calls = 0
+
+        plotter.imagesc([[1, 2], [3, 4]])
+
+        self.assertEqual(axes.autoscale_clim_calls, 0)
+
+    def test_imagesc_validates_cdata_and_axis_vectors(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "nonempty"):
+            plotter.imagesc([])
+        with self.assertRaisesRegex(ValueError, "two axis endpoints"):
+            plotter.imagesc([1, 2, 3], [1, 2], [[1, 2], [3, 4]])
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

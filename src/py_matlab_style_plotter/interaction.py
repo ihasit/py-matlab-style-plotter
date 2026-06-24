@@ -391,6 +391,16 @@ class TextSeries:
 
 
 @dataclass(frozen=True)
+class ImageSeries:
+    """One normalized MATLAB-like scaled image series."""
+
+    cdata: tuple[tuple[float, ...], ...]
+    x: tuple[float, ...] | None = None
+    y: tuple[float, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -933,6 +943,22 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like scaled image data on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_imagesc_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_image_series(axes, series)
+        if self.clim_mode == "auto":
+            self.autoscale_clim(axes)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -1165,6 +1191,22 @@ class MatlabLikeAxesBase:
         values = self._numeric_vector(data_args[0], "histogram data")
         bins = self._normalize_histogram_bins(data_args[1]) if len(data_args) == 2 else None
         return [HistogramSeries(values, bins, properties)]
+
+    def normalize_imagesc_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ImageSeries]:
+        """Normalize common MATLAB ``imagesc`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) == 1:
+            x_data = None
+            y_data = None
+            cdata = self._image_cdata(data_args[0], "CData")
+        elif len(data_args) == 3:
+            x_data = self._image_axis_vector(data_args[0], "x")
+            y_data = self._image_axis_vector(data_args[1], "y")
+            cdata = self._image_cdata(data_args[2], "CData")
+        else:
+            raise ValueError("imagesc requires CData or x, y, CData")
+        return [ImageSeries(cdata, x_data, y_data, properties)]
 
     def normalize_constant_line_args(
         self,
@@ -1551,6 +1593,18 @@ class MatlabLikeAxesBase:
         if any(edges[index] >= edges[index + 1] for index in range(len(edges) - 1)):
             raise ValueError("histogram bin edges must be strictly increasing")
         return edges
+
+    def _image_cdata(self, value: Any, label: str) -> tuple[tuple[float, ...], ...]:
+        data = self._plot_data(value, label)
+        if data.row_count == 0 or data.column_count == 0:
+            raise ValueError(f"{label} must be a nonempty numeric matrix")
+        return data.rows
+
+    def _image_axis_vector(self, value: Any, label: str) -> tuple[float, ...]:
+        vector = self._numeric_vector(value, f"imagesc {label} data")
+        if len(vector) not in {2}:
+            raise ValueError(f"imagesc {label} data must contain two axis endpoints")
+        return vector
 
     def _stairs_points(self, x_values: tuple[float, ...], y_values: tuple[float, ...]) -> tuple[tuple[float, ...], tuple[float, ...]]:
         if len(x_values) != len(y_values):
@@ -4683,6 +4737,11 @@ class MatlabLikeAxesBase:
 
     def draw_text_series(self, axes: Any, series: Sequence[TextSeries]) -> list[Any]:
         """Draw normalized axes text annotations for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_image_series(self, axes: Any, series: Sequence[ImageSeries]) -> list[Any]:
+        """Draw normalized image series for the concrete backend."""
 
         raise NotImplementedError
 

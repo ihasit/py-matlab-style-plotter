@@ -250,6 +250,7 @@ class FakeAxes:
         self.axvline_calls = []
         self.axhline_calls = []
         self.text_calls = []
+        self.imshow_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -392,6 +393,14 @@ class FakeAxes:
         annotation.kwargs = kwargs
         self.text_calls.append((args, kwargs))
         return annotation
+
+    def imshow(self, data, **kwargs):
+        image = FakeMappable()
+        image.data = tuple(tuple(row) for row in data)
+        image.kwargs = kwargs
+        self.images.append(image)
+        self.imshow_calls.append((image.data, kwargs))
+        return image
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -929,6 +938,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertEqual(len(artists), 1)
         self.assertEqual(axes.text_calls, [((1.0, 2.0, 3.0, "label"), {})])
+
+    def test_imagesc_draws_scaled_image_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.imagesc([10, 20], [30, 40], [[1, 2], [3, 4]], "DisplayName", "img")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.imshow_calls,
+            [
+                (
+                    ((1.0, 2.0), (3.0, 4.0)),
+                    {"label": "img", "origin": "upper", "aspect": "auto", "extent": (10.0, 20.0, 40.0, 30.0)},
+                )
+            ],
+        )
+        self.assertEqual(axes.images, artists)
 
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()

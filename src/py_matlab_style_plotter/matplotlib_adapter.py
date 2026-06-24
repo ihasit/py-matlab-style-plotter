@@ -21,6 +21,7 @@ from .interaction import (
     ErrorBarSeries,
     FillSeries,
     HistogramSeries,
+    ImageSeries,
     MatlabLikeAxesBase,
     Plot3Series,
     PlotSeries,
@@ -246,6 +247,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 created = axes.text(item.x, item.y, value, **kwargs)
             else:
                 created = axes.text(item.x, item.y, item.z, value, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_image_series(self, axes: Any, series: list[ImageSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = dict(item.properties)
+            kwargs.setdefault("origin", "upper")
+            kwargs.setdefault("aspect", "auto")
+            if item.x is not None and item.y is not None:
+                kwargs.setdefault("extent", (item.x[0], item.x[1], item.y[1], item.y[0]))
+            created = axes.imshow(item.cdata, **kwargs)
             artists.append(created)
         self._draw_idle(axes)
         return artists
