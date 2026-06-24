@@ -17,6 +17,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
 - MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
+- MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
 - Matplotlib `replace` / `replacechildren` plot lifecycles clear stale data tips, selections, coordinate readouts, and temporary zoom/brush boxes for the target axes
@@ -80,6 +81,9 @@ one hook and inherit MATLAB-like `hold`/`NextPlot` behavior consistently.
 Use `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` to
 query or set the per-axes series-order state explicitly; setting color or line
 style order resets `NextSeriesIndex` to MATLAB-like cycle-start behavior.
+`semilogx(...)`, `semilogy(...)`, and `loglog(...)` share the same parsing,
+series-order, `NextPlot`, and view-history behavior as `plot(...)`, then apply
+the corresponding x/y logarithmic axis scale.
 
 ## Matplotlib Demo
 

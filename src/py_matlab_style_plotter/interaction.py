@@ -680,6 +680,49 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def semilogx(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """MATLAB-like semilogx plot with logarithmic x scale."""
+
+        return self._plot_with_axis_scales("log", "linear", *args, axes=axes, **kwargs)
+
+    def semilogy(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """MATLAB-like semilogy plot with logarithmic y scale."""
+
+        return self._plot_with_axis_scales("linear", "log", *args, axes=axes, **kwargs)
+
+    def loglog(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """MATLAB-like loglog plot with logarithmic x and y scales."""
+
+        return self._plot_with_axis_scales("log", "log", *args, axes=axes, **kwargs)
+
+    def _plot_with_axis_scales(
+        self,
+        x_scale: AxisScale,
+        y_scale: AxisScale,
+        *args: Any,
+        axes: Any | None = None,
+        **kwargs: Any,
+    ) -> list[Any]:
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        artists = self.plot(*args, axes=axes, **kwargs)
+        self.set_active_axes(axes)
+        changed = False
+        if self.x_scale != x_scale:
+            self.x_scale = x_scale
+            self.set_axis_scale(axes, "x", x_scale)
+            changed = True
+        if self.y_scale != y_scale:
+            self.y_scale = y_scale
+            self.set_axis_scale(axes, "y", y_scale)
+            changed = True
+        if changed:
+            self._save_axes_ui_state(axes)
+            self.push_current_view(axes)
+        return artists
+
     def colororder(
         self,
         value: Sequence[Sequence[float]] | Literal["default"] | None = None,

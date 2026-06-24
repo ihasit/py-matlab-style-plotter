@@ -565,6 +565,23 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             [((1.0, 2.0), (3.0, 4.0), (), {"color": "r", "linestyle": "--", "linewidth": 2, "label": "signal"})],
         )
 
+    def test_semilog_helpers_plot_and_set_matplotlib_axis_scales(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.semilogx([1, 10], [2, 3])
+        self.assertEqual(axes._xscale, "log")
+        self.assertEqual(axes._yscale, "linear")
+
+        plotter.semilogy([1, 10], [2, 3])
+        self.assertEqual(axes._xscale, "linear")
+        self.assertEqual(axes._yscale, "log")
+
+        plotter.loglog([1, 10], [2, 3])
+        self.assertEqual(axes._xscale, "log")
+        self.assertEqual(axes._yscale, "log")
+        self.assertEqual(len(axes.plot_calls), 3)
+
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)

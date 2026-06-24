@@ -894,6 +894,36 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "nonnegative"):
             plotter.nextseriesindex(-1)
 
+    def test_semilog_helpers_apply_axis_scales_after_plot(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.semilogx([1, 10], [2, 3])
+        self.assertEqual(axes.x_scale, "log")
+        self.assertEqual(axes.y_scale, "linear")
+        self.assertEqual(len(plotter.drawn_series), 1)
+
+        plotter.semilogy([1, 10], [2, 3])
+        self.assertEqual(axes.x_scale, "linear")
+        self.assertEqual(axes.y_scale, "log")
+
+        plotter.loglog([1, 10], [2, 3])
+        self.assertEqual(axes.x_scale, "log")
+        self.assertEqual(axes.y_scale, "log")
+
+    def test_semilog_helpers_accept_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.loglog(axes2, [1, 10], [2, 20])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        self.assertEqual(axes2.x_scale, "log")
+        self.assertEqual(axes2.y_scale, "log")
+
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())
 
