@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py-matlab-style-plotter"
+version = "0.1.0"
+description = "MATLAB-like axes plotting and UI interaction helpers for Python."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+matplotlib = ["matplotlib>=3.8"]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
