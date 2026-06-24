@@ -31,6 +31,8 @@ coverage.xml
 .DS_Store
 .idea/
 .vscode/
+.cursorindexingignore
+.specstory/
 
 # Matplotlib/runtime output
 *.png
