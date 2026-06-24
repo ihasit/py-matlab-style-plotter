@@ -20,6 +20,7 @@ from .interaction import (
     Plot3Series,
     PlotSeries,
     ScatterSeries,
+    StemSeries,
     TickDirection,
     XAxisLocation,
     YAxisLocation,
@@ -145,6 +146,22 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 kwargs.setdefault("c", color)
             created = axes.scatter(item.x, item.y, **kwargs)
             artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_stem_series(self, axes: Any, series: list[StemSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            style = item.style if item.style is not None and not item.line_spec else None
+            if style is None:
+                created = axes.stem(item.x, item.y, **kwargs)
+            else:
+                created = axes.stem(item.x, item.y, style, **kwargs)
+            if isinstance(created, tuple):
+                artists.extend(created)
+            else:
+                artists.append(created)
         self._draw_idle(axes)
         return artists
 

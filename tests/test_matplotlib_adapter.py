@@ -241,6 +241,7 @@ class FakeAxes:
         self.plot_calls = []
         self.errorbar_calls = []
         self.scatter_calls = []
+        self.stem_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -301,6 +302,20 @@ class FakeAxes:
         self.collections.append(collection)
         self.scatter_calls.append((tuple(x), tuple(y), kwargs))
         return collection
+
+    def stem(self, x, y, *args, **kwargs):
+        markerline = FakeLine(tuple(x), tuple(y), label=str(kwargs.get("label", "series")))
+        stemlines = FakeLine(tuple(x), tuple(y))
+        baseline = FakeLine(tuple(x), tuple(0.0 for _item in x))
+        markerline.kwargs = kwargs
+        stemlines.kwargs = kwargs
+        baseline.kwargs = kwargs
+        markerline.axes = self
+        stemlines.axes = self
+        baseline.axes = self
+        self.lines.extend([markerline, stemlines, baseline])
+        self.stem_calls.append((tuple(x), tuple(y), args, kwargs))
+        return markerline, stemlines, baseline
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -702,6 +717,25 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                     (1.0, 2.0),
                     (10.0, 20.0),
                     {"label": "pts", "s": (25.0, 36.0), "c": (1.0, 0.0, 0.0)},
+                )
+            ],
+        )
+
+    def test_stem_draws_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.stem([1, 2], [10, 20], "r--o", "DisplayName", "stem")
+
+        self.assertEqual(len(artists), 3)
+        self.assertEqual(
+            axes.stem_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    (),
+                    {"color": "r", "linestyle": "--", "marker": "o", "label": "stem"},
                 )
             ],
         )

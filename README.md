@@ -22,6 +22,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `stairs(...)` command template that expands stairstep x/y points while reusing `plot(...)` parsing, styling, series-order, and lifecycle behavior
 - MATLAB-style vertical `errorbar(...)` command template for `y/e`, `x/y/e`, and `x/y/negative/positive` forms with shared styling and lifecycle behavior
 - MATLAB-style `scatter(...)` command template for `x/y`, optional marker size, optional color, matrix-column expansion, and shared styling/lifecycle behavior
+- MATLAB-style `stem(...)` command template for discrete sequence plots with shared `plot(...)` parsing, LineSpec, series-order, and lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -106,6 +107,10 @@ color string, RGB triplet, or one RGB row per point. The helper supports
 positional axes handles, MATLAB-style Name/Value properties, matrix-column
 expansion, default `ColorOrder` / `NextSeriesIndex` assignment, hold, and
 `NextPlot` lifecycle behavior before delegating to `draw_scatter_series(...)`.
+`stem(...)` normalizes the same `y`, `x/y`, LineSpec, matrix-column, and
+Name/Value forms as `plot(...)` into backend-neutral `StemSeries` records,
+then applies default series-order, hold, and `NextPlot` behavior before
+delegating to `draw_stem_series(...)`.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

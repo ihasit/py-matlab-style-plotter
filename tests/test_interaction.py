@@ -14,6 +14,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     ScatterSeries,
+    StemSeries,
     ToolState,
 )
 
@@ -88,6 +89,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_plot3_series = []
         self.drawn_errorbar_series = []
         self.drawn_scatter_series = []
+        self.drawn_stem_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -145,6 +147,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_scatter_series(self, axes, series):
         self.drawn_scatter_series.append((axes, tuple(series)))
         return [f"scatter-{len(self.drawn_scatter_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_stem_series(self, axes, series):
+        self.drawn_stem_series.append((axes, tuple(series)))
+        return [f"stem-{len(self.drawn_stem_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1022,6 +1028,58 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             plotter.scatter([1, 2], [3, 4], 10, [1, 0])
         with self.assertRaisesRegex(ValueError, "color rows"):
             plotter.scatter([1, 2], [3, 4], 10, [[1, 0, 0]])
+
+    def test_stem_normalizes_y_series_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.stem([10, 20, 30], "DisplayName", "stems")
+
+        self.assertEqual(artists, ["stem-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_stem_series[0]
+        self.assertEqual(
+            series[0],
+            StemSeries(
+                (1.0, 2.0, 3.0),
+                (10.0, 20.0, 30.0),
+                None,
+                (("label", "stems"),),
+                (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")),
+            ),
+        )
+        self.assertEqual(axes.autoscale_calls, [False])
+
+    def test_stem_accepts_xy_linespec_and_matrix_columns(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.stem([1, 2], [[10, 100], [20, 200]], "r--o")
+
+        _axes, series = plotter.drawn_stem_series[0]
+        self.assertEqual(
+            series,
+            (
+                StemSeries((1.0, 2.0), (10.0, 20.0), "r--o", (), (("color", "r"), ("linestyle", "--"), ("marker", "o"))),
+                StemSeries((1.0, 2.0), (100.0, 200.0), "r--o", (), (("color", "r"), ("linestyle", "--"), ("marker", "o"))),
+            ),
+        )
+        self.assertEqual(plotter.next_series_index, 0)
+
+    def test_stem_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.stem(axes2, [10, 20], [30, 40])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_stem_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

@@ -313,6 +313,17 @@ class ScatterSeries:
 
 
 @dataclass(frozen=True)
+class StemSeries:
+    """One normalized MATLAB-like ``stem`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -778,6 +789,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def stem(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like stem series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_stem_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_stem_series_order(axes, series)
+        artists = self.draw_stem_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -915,6 +941,14 @@ class MatlabLikeAxesBase:
                 series.line_spec,
             )
             for series in base_series
+        ]
+
+    def normalize_stem_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[StemSeries]:
+        """Normalize common MATLAB ``stem`` calling forms."""
+
+        return [
+            StemSeries(series.x, series.y, series.style, series.properties, series.line_spec)
+            for series in self.normalize_plot_args(args, kwargs)
         ]
 
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
@@ -1379,6 +1413,14 @@ class MatlabLikeAxesBase:
             self.color_order = color_order
             self.next_series_index = next_index
         return ordered
+
+    def _apply_stem_series_order(self, axes: Any, series: list[StemSeries]) -> list[StemSeries]:
+        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
+        ordered = self._apply_plot_series_order(axes, proxy)
+        return [
+            StemSeries(item.x, item.y, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
+            for item, ordered_item in zip(series, ordered)
+        ]
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
         if not style:
@@ -4228,6 +4270,11 @@ class MatlabLikeAxesBase:
 
     def draw_scatter_series(self, axes: Any, series: Sequence[ScatterSeries]) -> list[Any]:
         """Draw normalized scatter series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_stem_series(self, axes: Any, series: Sequence[StemSeries]) -> list[Any]:
+        """Draw normalized stem series for the concrete backend."""
 
         raise NotImplementedError
 
