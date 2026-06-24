@@ -347,6 +347,17 @@ class AreaSeries:
 
 
 @dataclass(frozen=True)
+class FillSeries:
+    """One normalized MATLAB-like filled polygon series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    color: Any | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -470,6 +481,8 @@ class MatlabLikeAxesBase:
     _PLOT_PROPERTY_ALIASES = {
         "color": "color",
         "displayname": "label",
+        "edgecolor": "edgecolor",
+        "facecolor": "facecolor",
         "label": "label",
         "linestyle": "linestyle",
         "linewidth": "linewidth",
@@ -857,6 +870,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def fill(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like filled polygon series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_fill_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_fill_series_order(axes, series)
+        artists = self.draw_fill_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -1016,6 +1044,28 @@ class MatlabLikeAxesBase:
         """Normalize common MATLAB stacked ``area`` calling forms."""
 
         return self._area_series_from_plot_series(self.normalize_plot_args(args, kwargs))
+
+    def normalize_fill_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[FillSeries]:
+        """Normalize common MATLAB ``fill`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 2:
+            raise ValueError("fill requires x and y data arguments")
+        series: list[FillSeries] = []
+        index = 0
+        while index < len(data_args):
+            if index + 1 >= len(data_args):
+                raise ValueError("fill data arguments must be x, y, optional color groups")
+            x_data = self._plot_data(data_args[index], f"argument {index + 1}")
+            y_data = self._plot_data(data_args[index + 1], f"argument {index + 2}")
+            index += 2
+            color = None
+            if index < len(data_args) and self._is_fill_color_arg(data_args[index]):
+                color = self._normalize_fill_color(data_args[index], "fill color")
+                index += 1
+            for item in self._plot_series_from_data(x_data, y_data, None, properties):
+                series.append(FillSeries(item.x, item.y, color, item.properties, item.line_spec))
+        return series
 
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
         """Normalize common MATLAB vertical ``errorbar`` calling forms."""
@@ -1310,6 +1360,30 @@ class MatlabLikeAxesBase:
             baselines[item.x] = top
         return grouped
 
+    def _is_fill_color_arg(self, value: Any) -> bool:
+        if isinstance(value, str):
+            return True
+        if self._is_plot_row(value):
+            return True
+        try:
+            vector = tuple(float(item) for item in value)
+        except (TypeError, ValueError):
+            return False
+        return len(vector) == 3
+
+    def _normalize_fill_color(self, value: Any, label: str) -> Any:
+        if isinstance(value, str):
+            return value
+        if self._is_plot_row(value):
+            return self._normalize_color_order(cast(Sequence[Sequence[float]], value))
+        try:
+            vector = tuple(float(item) for item in value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label} must be a color string, RGB triplet, or N-by-3 RGB sequence") from exc
+        if len(vector) != 3 or any(not isfinite(item) or item < 0.0 or item > 1.0 for item in vector):
+            raise ValueError(f"{label} must be a color string, RGB triplet, or N-by-3 RGB sequence")
+        return vector
+
     def _stairs_points(self, x_values: tuple[float, ...], y_values: tuple[float, ...]) -> tuple[tuple[float, ...], tuple[float, ...]]:
         if len(x_values) != len(y_values):
             raise ValueError("stairs x and y data must have the same length")
@@ -1517,6 +1591,27 @@ class MatlabLikeAxesBase:
             AreaSeries(item.x, item.y, item.baseline, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
             for item, ordered_item in zip(series, ordered)
         ]
+
+    def _apply_fill_series_order(self, axes: Any, series: list[FillSeries]) -> list[FillSeries]:
+        state = self._current_axes_ui_state(axes)
+        color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        next_index = state.next_series_index
+        ordered: list[FillSeries] = []
+        for item in series:
+            line_spec = item.line_spec
+            if item.color is not None:
+                line_spec = (*line_spec, ("facecolor", item.color))
+            elif not any(name in {"color", "facecolor"} for name, _value in (*line_spec, *item.properties)) and color_order:
+                line_spec = (*line_spec, ("facecolor", color_order[next_index % len(color_order)]))
+                next_index += 1
+            ordered.append(FillSeries(item.x, item.y, item.color, item.properties, line_spec))
+        state.color_order = color_order
+        state.next_series_index = next_index
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.color_order = color_order
+            self.next_series_index = next_index
+        return ordered
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
         if not style:
@@ -4381,6 +4476,11 @@ class MatlabLikeAxesBase:
 
     def draw_area_series(self, axes: Any, series: Sequence[AreaSeries]) -> list[Any]:
         """Draw normalized stacked area series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_fill_series(self, axes: Any, series: Sequence[FillSeries]) -> list[Any]:
+        """Draw normalized filled polygon series for the concrete backend."""
 
         raise NotImplementedError
 

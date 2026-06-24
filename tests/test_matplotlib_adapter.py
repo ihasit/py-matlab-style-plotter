@@ -244,6 +244,7 @@ class FakeAxes:
         self.stem_calls = []
         self.bar_calls = []
         self.fill_between_calls = []
+        self.fill_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -340,6 +341,15 @@ class FakeAxes:
         self.collections.append(collection)
         self.fill_between_calls.append((tuple(x), tuple(y1), tuple(y2), kwargs))
         return collection
+
+    def fill(self, x, y, **kwargs):
+        patch = FakePatch(self)
+        patch.x = tuple(x)
+        patch.y = tuple(y)
+        patch.kwargs = kwargs
+        self.patches.append(patch)
+        self.fill_calls.append((tuple(x), tuple(y), kwargs))
+        return [patch]
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -804,6 +814,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                     (110.0, 220.0),
                     {"color": "r", "label": "area", "facecolor": "r"},
                 ),
+            ],
+        )
+
+    def test_fill_draws_polygon_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.fill([0, 1, 0], [0, 0, 1], "r", "DisplayName", "triangle")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.fill_calls,
+            [
+                (
+                    (0.0, 1.0, 0.0),
+                    (0.0, 0.0, 1.0),
+                    {"facecolor": "r", "label": "triangle"},
+                )
             ],
         )
 

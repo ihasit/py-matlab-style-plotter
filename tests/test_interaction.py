@@ -9,6 +9,7 @@ from py_matlab_style_plotter import (
     BoxAspectMode,
     Camera3DState,
     ErrorBarSeries,
+    FillSeries,
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
@@ -94,6 +95,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_stem_series = []
         self.drawn_bar_series = []
         self.drawn_area_series = []
+        self.drawn_fill_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -163,6 +165,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_area_series(self, axes, series):
         self.drawn_area_series.append((axes, tuple(series)))
         return [f"area-{len(self.drawn_area_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_fill_series(self, axes, series):
+        self.drawn_fill_series.append((axes, tuple(series)))
+        return [f"fill-{len(self.drawn_fill_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1196,6 +1202,64 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(series[0].x, (10.0, 20.0))
         self.assertEqual(series[0].y, (30.0, 40.0))
         self.assertEqual(series[0].baseline, (0.0, 0.0))
+
+    def test_fill_normalizes_polygon_color_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.fill([0, 1, 0], [0, 0, 1], "red", "DisplayName", "triangle")
+
+        self.assertEqual(artists, ["fill-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_fill_series[0]
+        self.assertEqual(
+            series[0],
+            FillSeries(
+                (0.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0),
+                "red",
+                (("label", "triangle"),),
+                (("facecolor", "red"),),
+            ),
+        )
+        self.assertEqual(plotter.next_series_index, 0)
+        self.assertEqual(axes.autoscale_calls, [False])
+
+    def test_fill_without_explicit_color_uses_color_order(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.fill([0, 1, 0], [0, 0, 1])
+
+        _axes, series = plotter.drawn_fill_series[0]
+        self.assertEqual(series[0].line_spec, (("facecolor", plotter.DEFAULT_COLOR_ORDER[0]),))
+        self.assertEqual(plotter.next_series_index, 1)
+
+    def test_fill_accepts_repeated_polygon_groups(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.fill([0, 1, 0], [0, 0, 1], "r", [2, 3, 2], [0, 0, 1], [0, 1, 0])
+
+        _axes, series = plotter.drawn_fill_series[0]
+        self.assertEqual(len(series), 2)
+        self.assertEqual(series[0].color, "r")
+        self.assertEqual(series[1].color, (0.0, 1.0, 0.0))
+        self.assertEqual(series[1].x, (2.0, 3.0, 2.0))
+
+    def test_fill_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.fill(axes2, [0, 1, 0], [0, 0, 1], [0, 0, 1])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_fill_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0].color, (0.0, 0.0, 1.0))
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

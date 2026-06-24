@@ -18,6 +18,7 @@ from .interaction import (
     CameraProjection,
     BarSeries,
     ErrorBarSeries,
+    FillSeries,
     MatlabLikeAxesBase,
     Plot3Series,
     PlotSeries,
@@ -192,6 +193,17 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 kwargs.setdefault("facecolor", color)
             created = axes.fill_between(item.x, item.baseline, item.y, **kwargs)
             artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_fill_series(self, axes: Any, series: list[FillSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            if "color" in kwargs and "facecolor" not in kwargs:
+                kwargs["facecolor"] = kwargs.pop("color")
+            created = axes.fill(item.x, item.y, **kwargs)
+            artists.extend(created if isinstance(created, list) else list(created))
         self._draw_idle(axes)
         return artists
 

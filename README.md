@@ -25,6 +25,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `stem(...)` command template for discrete sequence plots with shared `plot(...)` parsing, LineSpec, series-order, and lifecycle behavior
 - MATLAB-style `bar(...)` command template for vertical bar plots with shared `plot(...)` parsing, LineSpec, series-order, and lifecycle behavior
 - MATLAB-style `area(...)` command template for stacked area plots with shared `plot(...)` parsing, LineSpec, series-order, and lifecycle behavior
+- MATLAB-style `fill(...)` command template for filled polygons with explicit color groups, default `ColorOrder`, and shared lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -122,6 +123,12 @@ Name/Value forms as `plot(...)` into backend-neutral `AreaSeries` records.
 Matrix columns are converted to stacked top/baseline pairs before default
 series-order, hold, and `NextPlot` behavior are applied, then delegated to
 `draw_area_series(...)`.
+`fill(...)` normalizes repeated `x, y, color` polygon groups into
+backend-neutral `FillSeries` records. Colors may be strings, RGB triplets, or
+N-by-3 RGB sequences; polygons without explicit color use `ColorOrder` and
+`NextSeriesIndex`. The helper also supports positional axes handles,
+Name/Value properties, hold, and `NextPlot` lifecycle behavior before
+delegating to `draw_fill_series(...)`.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order
