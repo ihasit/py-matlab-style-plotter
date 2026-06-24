@@ -982,6 +982,42 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(axes2.clear_calls, [True])
         self.assertEqual(plotter.drawn_plot3_series[0][0], axes2)
 
+    def test_stairs_expands_points_and_runs_plot_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.stairs([1, 2, 3], [10, 20, 30], "r--")
+
+        self.assertEqual(artists, ["line-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_series[0]
+        self.assertEqual(series[0].x, (1.0, 2.0, 2.0, 3.0, 3.0))
+        self.assertEqual(series[0].y, (10.0, 10.0, 20.0, 20.0, 30.0))
+        self.assertEqual(series[0].line_spec, (("color", "r"), ("linestyle", "--")))
+
+    def test_stairs_matrix_columns_expand_independently(self):
+        plotter = FakePlotter(FakeAxes())
+
+        plotter.stairs([1, 2], [[10, 100], [20, 200]])
+
+        _axes, series = plotter.drawn_series[0]
+        self.assertEqual(series[0].x, (1.0, 2.0, 2.0))
+        self.assertEqual(series[0].y, (10.0, 10.0, 20.0))
+        self.assertEqual(series[1].x, (1.0, 2.0, 2.0))
+        self.assertEqual(series[1].y, (100.0, 100.0, 200.0))
+
+    def test_stairs_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.stairs(axes2, [1, 2], [3, 4])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        self.assertIs(plotter.drawn_series[0][0], axes2)
+
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())
 

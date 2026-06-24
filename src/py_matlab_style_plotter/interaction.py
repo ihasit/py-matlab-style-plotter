@@ -707,6 +707,22 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def stairs(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like stairstep series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_plot_args(args, kwargs)
+        series = [self._stairs_series(item) for item in series]
+        self.prepare_for_plot(axes)
+        series = self._apply_plot_series_order(axes, series)
+        artists = self.draw_plot_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def semilogx(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """MATLAB-like semilogx plot with logarithmic x scale."""
 
@@ -1040,6 +1056,22 @@ class MatlabLikeAxesBase:
         x_values = tuple(float(item) for item in range(1, y_data.row_count + 1))
         line_spec = self._parse_line_spec(style)
         return [PlotSeries(x_values, y_data.column(column), style, properties, line_spec) for column in range(y_data.column_count)]
+
+    def _stairs_series(self, series: PlotSeries) -> PlotSeries:
+        x_values, y_values = self._stairs_points(series.x, series.y)
+        return PlotSeries(x_values, y_values, series.style, series.properties, series.line_spec)
+
+    def _stairs_points(self, x_values: tuple[float, ...], y_values: tuple[float, ...]) -> tuple[tuple[float, ...], tuple[float, ...]]:
+        if len(x_values) != len(y_values):
+            raise ValueError("stairs x and y data must have the same length")
+        if len(x_values) <= 1:
+            return x_values, y_values
+        stepped_x = [x_values[0]]
+        stepped_y = [y_values[0]]
+        for index in range(1, len(x_values)):
+            stepped_x.extend([x_values[index], x_values[index]])
+            stepped_y.extend([y_values[index - 1], y_values[index]])
+        return tuple(stepped_x), tuple(stepped_y)
 
     def _plot3_series_from_data(
         self,

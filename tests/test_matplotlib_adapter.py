@@ -610,6 +610,25 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             ],
         )
 
+    def test_stairs_draws_expanded_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.stairs([1, 2, 3], [10, 20, 30], "r--")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.plot_calls,
+            [
+                (
+                    (1.0, 2.0, 2.0, 3.0, 3.0),
+                    (10.0, 10.0, 20.0, 20.0, 30.0),
+                    (),
+                    {"color": "r", "linestyle": "--"},
+                )
+            ],
+        )
+
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)
