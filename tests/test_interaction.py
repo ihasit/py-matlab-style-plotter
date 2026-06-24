@@ -728,7 +728,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
                     (2.0, 4.0, 6.0),
                     None,
                     (("linewidth", 2),),
-                    (("color", plotter.DEFAULT_COLOR_ORDER[0]),),
+                    (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")),
                 ),
                 PlotSeries(
                     (3.0, 4.0),
@@ -767,7 +767,13 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertIs(drawn_axes, axes2)
         self.assertEqual(
             series[0],
-            PlotSeries((10.0, 20.0), (30.0, 40.0), None, (), (("color", plotter.DEFAULT_COLOR_ORDER[0]),)),
+            PlotSeries(
+                (10.0, 20.0),
+                (30.0, 40.0),
+                None,
+                (),
+                (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")),
+            ),
         )
 
     def test_plot_assigns_default_color_order_per_axes(self):
@@ -777,8 +783,8 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.plot([[1, 10], [2, 20]])
 
         _axes, series = plotter.drawn_series[0]
-        self.assertEqual(series[0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]),))
-        self.assertEqual(series[1].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[1]),))
+        self.assertEqual(series[0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")))
+        self.assertEqual(series[1].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[1]), ("linestyle", "-")))
         self.assertEqual(plotter.next_series_index, 2)
 
     def test_plot_hold_continues_color_order_and_replace_resets_it(self):
@@ -791,9 +797,9 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.hold("off")
         plotter.plot([5, 6])
 
-        self.assertEqual(plotter.drawn_series[0][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]),))
-        self.assertEqual(plotter.drawn_series[1][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[1]),))
-        self.assertEqual(plotter.drawn_series[2][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]),))
+        self.assertEqual(plotter.drawn_series[0][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")))
+        self.assertEqual(plotter.drawn_series[1][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[1]), ("linestyle", "-")))
+        self.assertEqual(plotter.drawn_series[2][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")))
         self.assertEqual(plotter.next_series_index, 1)
 
     def test_plot_explicit_color_does_not_advance_default_color_order(self):
@@ -805,7 +811,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.plot([5, 6])
 
         self.assertEqual(plotter.drawn_series[0][1][0].line_spec, (("color", "r"), ("linestyle", "--")))
-        self.assertEqual(plotter.drawn_series[1][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]),))
+        self.assertEqual(plotter.drawn_series[1][1][0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")))
 
     def test_plot_color_order_participates_in_view_state(self):
         axes = FakeAxes()
@@ -816,6 +822,22 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         self.assertEqual(state.next_series_index, 2)
         self.assertEqual(state.color_order, plotter.DEFAULT_COLOR_ORDER)
+        self.assertEqual(state.line_style_order, plotter.DEFAULT_LINE_STYLE_ORDER)
+
+    def test_plot_line_style_order_advances_after_color_order_cycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+        plotter.color_order = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+        plotter.line_style_order = ("-", "--")
+        plotter.hold("on")
+        plotter._save_axes_ui_state(axes)
+
+        plotter.plot([[1, 10, 100], [2, 20, 200], [3, 30, 300]])
+
+        _axes, series = plotter.drawn_series[0]
+        self.assertEqual(series[0].line_spec, (("color", (1.0, 0.0, 0.0)), ("linestyle", "-")))
+        self.assertEqual(series[1].line_spec, (("color", (0.0, 1.0, 0.0)), ("linestyle", "-")))
+        self.assertEqual(series[2].line_spec, (("color", (1.0, 0.0, 0.0)), ("linestyle", "--")))
 
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())

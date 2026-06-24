@@ -491,7 +491,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             axes.plot_calls,
             [
                 ((0.0, 1.0), (2.0, 3.0), (), {"color": "k", "linestyle": ":", "label": "signal", "linewidth": 2}),
-                ((1.0, 2.0), (4.0, 5.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0], "label": "signal", "linewidth": 2}),
+                ((1.0, 2.0), (4.0, 5.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0], "linestyle": "-", "label": "signal", "linewidth": 2}),
             ],
         )
         self.assertEqual(axes.relim_count, 1)
@@ -522,7 +522,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertIs(plotter.active_axes, axes2)
         self.assertEqual(len(artists), 1)
         self.assertEqual(axes1.plot_calls, [])
-        self.assertEqual(axes2.plot_calls, [((1.0, 2.0), (3.0, 4.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0]})])
+        self.assertEqual(axes2.plot_calls, [((1.0, 2.0), (3.0, 4.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0], "linestyle": "-"})])
 
     def test_plot_default_color_order_is_passed_to_matplotlib(self):
         axes = FakeAxes()
@@ -533,8 +533,8 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(
             axes.plot_calls,
             [
-                ((1.0, 2.0), (1.0, 2.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0]}),
-                ((1.0, 2.0), (10.0, 20.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[1]}),
+                ((1.0, 2.0), (1.0, 2.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0], "linestyle": "-"}),
+                ((1.0, 2.0), (10.0, 20.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[1], "linestyle": "-"}),
             ],
         )
 
@@ -548,8 +548,8 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(
             axes.plot_calls,
             [
-                ((10.0, 20.0, 30.0), (1.0, 2.0, 3.0), (), {"marker": "x", "color": plotter.DEFAULT_COLOR_ORDER[0]}),
-                ((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), (), {"marker": "x", "color": plotter.DEFAULT_COLOR_ORDER[1]}),
+                ((10.0, 20.0, 30.0), (1.0, 2.0, 3.0), (), {"marker": "x", "color": plotter.DEFAULT_COLOR_ORDER[0], "linestyle": "-"}),
+                ((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), (), {"marker": "x", "color": plotter.DEFAULT_COLOR_ORDER[1], "linestyle": "-"}),
             ],
         )
 

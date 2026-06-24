@@ -157,6 +157,7 @@ class ViewState:
     hold_enabled: bool = False
     next_plot: NextPlotMode = "replace"
     color_order: tuple[tuple[float, float, float], ...] = ()
+    line_style_order: tuple[str, ...] = ()
     next_series_index: int = 0
     camera: "Camera3DState | None" = None
 
@@ -232,6 +233,7 @@ class AxesUIState:
     hold_enabled: bool = False
     next_plot: NextPlotMode = "replace"
     color_order: tuple[tuple[float, float, float], ...] = ()
+    line_style_order: tuple[str, ...] = ()
     next_series_index: int = 0
 
 
@@ -423,6 +425,7 @@ class MatlabLikeAxesBase:
         (0.3010, 0.7450, 0.9330),
         (0.6350, 0.0780, 0.1840),
     )
+    DEFAULT_LINE_STYLE_ORDER: tuple[str, ...] = ("-",)
     _VIEW_3D_PRESETS: dict[View3DPreset, Camera3DState] = {
         "2d": Camera3DState(azim=0.0, elev=90.0),
         "xy": Camera3DState(azim=0.0, elev=90.0),
@@ -439,6 +442,7 @@ class MatlabLikeAxesBase:
         self.hold_enabled = False
         self.next_plot: NextPlotMode = "replace"
         self.color_order = self.DEFAULT_COLOR_ORDER
+        self.line_style_order = self.DEFAULT_LINE_STYLE_ORDER
         self.next_series_index = 0
         self.xlim_mode: LimitMode = "auto"
         self.ylim_mode: LimitMode = "auto"
@@ -671,7 +675,7 @@ class MatlabLikeAxesBase:
         self.set_active_axes(axes)
         series = self.normalize_plot_args(args, kwargs)
         self.prepare_for_plot(axes)
-        series = self._apply_plot_color_order(axes, series)
+        series = self._apply_plot_series_order(axes, series)
         artists = self.draw_plot_series(axes, series)
         self.after_plot(axes)
         return artists
@@ -866,36 +870,49 @@ class MatlabLikeAxesBase:
         line_spec = self._parse_line_spec(style)
         return [PlotSeries(x_values, y_data.column(column), style, properties, line_spec) for column in range(y_data.column_count)]
 
-    def _apply_plot_color_order(self, axes: Any, series: list[PlotSeries]) -> list[PlotSeries]:
+    def _apply_plot_series_order(self, axes: Any, series: list[PlotSeries]) -> list[PlotSeries]:
         state = self._current_axes_ui_state(axes)
         color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
         next_index = state.next_series_index
-        colored: list[PlotSeries] = []
+        ordered: list[PlotSeries] = []
         for item in series:
-            if self._series_has_explicit_color(item) or not color_order or (item.style is not None and not item.line_spec):
-                colored.append(item)
+            if item.style is not None and not item.line_spec:
+                ordered.append(item)
                 continue
-            color = color_order[next_index % len(color_order)]
-            next_index += 1
-            colored.append(
+            line_spec = item.line_spec
+            applied_default = False
+            if not self._series_has_property(item, "color") and color_order:
+                color = color_order[next_index % len(color_order)]
+                line_spec = (*line_spec, ("color", color))
+                applied_default = True
+            if not self._series_has_property(item, "linestyle") and line_style_order:
+                style_index = (next_index // max(len(color_order), 1)) % len(line_style_order)
+                line_spec = (*line_spec, ("linestyle", line_style_order[style_index]))
+                applied_default = True
+            if applied_default:
+                next_index += 1
+            ordered.append(
                 PlotSeries(
                     item.x,
                     item.y,
                     item.style,
                     item.properties,
-                    (*item.line_spec, ("color", color)),
+                    line_spec,
                 )
             )
         state.color_order = color_order
+        state.line_style_order = line_style_order
         state.next_series_index = next_index
         self._axes_ui_state[axes] = state
         if axes is self.active_axes:
             self.color_order = color_order
+            self.line_style_order = line_style_order
             self.next_series_index = next_index
-        return colored
+        return ordered
 
-    def _series_has_explicit_color(self, series: PlotSeries) -> bool:
-        return any(name == "color" for name, _value in (*series.line_spec, *series.properties))
+    def _series_has_property(self, series: PlotSeries, property_name: str) -> bool:
+        return any(name == property_name for name, _value in (*series.line_spec, *series.properties))
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
         if not style:
@@ -2501,6 +2518,7 @@ class MatlabLikeAxesBase:
             hold_enabled=state.hold_enabled,
             next_plot=state.next_plot,
             color_order=state.color_order,
+            line_style_order=state.line_style_order,
             next_series_index=state.next_series_index,
             camera=camera,
         )
@@ -2581,6 +2599,7 @@ class MatlabLikeAxesBase:
             hold_enabled=self.hold_enabled,
             next_plot=self.next_plot,
             color_order=self.color_order,
+            line_style_order=self.line_style_order,
             next_series_index=self.next_series_index,
         )
 
@@ -2681,6 +2700,7 @@ class MatlabLikeAxesBase:
         self.hold_enabled = state.hold_enabled
         self.next_plot = state.next_plot
         self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        self.line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
         self.next_series_index = state.next_series_index
 
     def home(self) -> bool:
@@ -3109,7 +3129,10 @@ class MatlabLikeAxesBase:
         self.clear_children(axes, reset_properties=True)
         self.clear_view_history(axes)
         self.reset_axes_properties(axes)
-        self._axes_ui_state[axes] = AxesUIState(color_order=self.DEFAULT_COLOR_ORDER)
+        self._axes_ui_state[axes] = AxesUIState(
+            color_order=self.DEFAULT_COLOR_ORDER,
+            line_style_order=self.DEFAULT_LINE_STYLE_ORDER,
+        )
         if axes is self.active_axes:
             self._load_axes_ui_state(axes)
 
@@ -3182,6 +3205,7 @@ class MatlabLikeAxesBase:
         self.hold_enabled = state.hold_enabled
         self.next_plot = state.next_plot
         self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        self.line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
         self.next_series_index = state.next_series_index
         self.set_aspect(axes, state.aspect)
         self.set_box_aspect(axes, state.box_aspect)
