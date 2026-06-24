@@ -839,6 +839,61 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(series[1].line_spec, (("color", (0.0, 1.0, 0.0)), ("linestyle", "-")))
         self.assertEqual(series[2].line_spec, (("color", (1.0, 0.0, 0.0)), ("linestyle", "--")))
 
+    def test_colororder_linestyleorder_and_nextseriesindex_are_settable(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.colororder([(1, 0, 0), (0, 1, 0)])
+        plotter.linestyleorder(["-", "--"])
+        plotter.nextseriesindex(2)
+        plotter.hold("on")
+        plotter.plot([1, 2])
+
+        self.assertEqual(plotter.colororder(), ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
+        self.assertEqual(plotter.linestyleorder(), ("-", "--"))
+        self.assertEqual(plotter.drawn_series[0][1][0].line_spec, (("color", (1.0, 0.0, 0.0)), ("linestyle", "--")))
+        self.assertEqual(plotter.nextseriesindex(), 3)
+
+    def test_colororder_and_linestyleorder_default_reset_series_index(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+        plotter.nextseriesindex(3)
+
+        plotter.colororder("default")
+        plotter.linestyleorder("default")
+
+        self.assertEqual(plotter.colororder(), plotter.DEFAULT_COLOR_ORDER)
+        self.assertEqual(plotter.linestyleorder(), plotter.DEFAULT_LINE_STYLE_ORDER)
+        self.assertEqual(plotter.nextseriesindex(), 0)
+
+    def test_plot_order_helpers_are_scoped_per_axes(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.colororder([(1, 0, 0)], axes=axes2)
+        plotter.linestyleorder("--", axes=axes2)
+        plotter.nextseriesindex(0, axes=axes2)
+        plotter.set_active_axes(axes2)
+        plotter.hold("on")
+        plotter.set_active_axes(axes1)
+        plotter.plot(axes2, [1, 2])
+
+        self.assertEqual(plotter.drawn_series[0][1][0].line_spec, (("color", (1.0, 0.0, 0.0)), ("linestyle", "--")))
+        self.assertEqual(plotter.colororder(axes=axes1), plotter.DEFAULT_COLOR_ORDER)
+
+    def test_plot_order_helpers_validate_values(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "N-by-3"):
+            plotter.colororder([(1, 0)])
+        with self.assertRaisesRegex(ValueError, "between 0 and 1"):
+            plotter.colororder([(1.2, 0, 0)])
+        with self.assertRaisesRegex(ValueError, "linestyleorder"):
+            plotter.linestyleorder(["bad"])
+        with self.assertRaisesRegex(ValueError, "nonnegative"):
+            plotter.nextseriesindex(-1)
+
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())
 

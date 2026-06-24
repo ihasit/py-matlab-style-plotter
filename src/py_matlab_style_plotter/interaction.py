@@ -680,6 +680,57 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def colororder(
+        self,
+        value: Sequence[Sequence[float]] | Literal["default"] | None = None,
+        axes: Any | None = None,
+    ) -> tuple[tuple[float, float, float], ...] | None:
+        axes = axes if axes is not None else self.require_active_axes()
+        if value is None:
+            state = self._current_axes_ui_state(axes)
+            return state.color_order or self.DEFAULT_COLOR_ORDER
+        color_order = self.DEFAULT_COLOR_ORDER if value == "default" else self._normalize_color_order(value)
+        state = self._current_axes_ui_state(axes)
+        state.color_order = color_order
+        state.next_series_index = 0
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.color_order = color_order
+            self.next_series_index = 0
+        return None
+
+    def linestyleorder(
+        self,
+        value: Sequence[str] | str | Literal["default"] | None = None,
+        axes: Any | None = None,
+    ) -> tuple[str, ...] | None:
+        axes = axes if axes is not None else self.require_active_axes()
+        if value is None:
+            state = self._current_axes_ui_state(axes)
+            return state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
+        line_style_order = self.DEFAULT_LINE_STYLE_ORDER if value == "default" else self._normalize_line_style_order(value)
+        state = self._current_axes_ui_state(axes)
+        state.line_style_order = line_style_order
+        state.next_series_index = 0
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.line_style_order = line_style_order
+            self.next_series_index = 0
+        return None
+
+    def nextseriesindex(self, value: int | None = None, axes: Any | None = None) -> int | None:
+        axes = axes if axes is not None else self.require_active_axes()
+        if value is None:
+            return self._current_axes_ui_state(axes).next_series_index
+        if not isinstance(value, int) or value < 0:
+            raise ValueError("nextseriesindex must be a nonnegative integer")
+        state = self._current_axes_ui_state(axes)
+        state.next_series_index = value
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.next_series_index = value
+        return None
+
     def normalize_plot_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PlotSeries]:
         """Normalize common MATLAB ``plot`` calling forms into line series."""
 
@@ -754,6 +805,27 @@ class MatlabLikeAxesBase:
             return tuple(str(item) for item in value)
         except TypeError:
             return (str(value),)
+
+    def _normalize_color_order(self, value: Sequence[Sequence[float]]) -> tuple[tuple[float, float, float], ...]:
+        try:
+            rows = tuple(tuple(float(component) for component in row) for row in value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("colororder must be an N-by-3 numeric sequence") from exc
+        if not rows or any(len(row) != 3 for row in rows):
+            raise ValueError("colororder must be a nonempty N-by-3 numeric sequence")
+        if any(not all(isfinite(component) and 0.0 <= component <= 1.0 for component in row) for row in rows):
+            raise ValueError("colororder values must be finite numbers between 0 and 1")
+        return rows
+
+    def _normalize_line_style_order(self, value: Sequence[str] | str) -> tuple[str, ...]:
+        styles = (value,) if isinstance(value, str) else tuple(value)
+        if not styles:
+            raise ValueError("linestyleorder must not be empty")
+        valid_styles = set(self._LINE_SPEC_LINESTYLES) | {"none"}
+        normalized = tuple(str(style).strip() for style in styles)
+        if any(style not in valid_styles for style in normalized):
+            raise ValueError("linestyleorder entries must be '-', '--', '-.', ':', or 'none'")
+        return normalized
 
     def _split_plot_args_and_properties(
         self,
