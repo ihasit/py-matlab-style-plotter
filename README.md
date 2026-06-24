@@ -26,6 +26,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `bar(...)` command template for vertical bar plots with shared `plot(...)` parsing, LineSpec, series-order, and lifecycle behavior
 - MATLAB-style `area(...)` command template for stacked area plots with shared `plot(...)` parsing, LineSpec, series-order, and lifecycle behavior
 - MATLAB-style `fill(...)` command template for filled polygons with explicit color groups, default `ColorOrder`, and shared lifecycle behavior
+- MATLAB-style `histogram(...)` command template for data histograms with optional bin count or explicit bin edges and shared lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -129,6 +130,12 @@ N-by-3 RGB sequences; polygons without explicit color use `ColorOrder` and
 `NextSeriesIndex`. The helper also supports positional axes handles,
 Name/Value properties, hold, and `NextPlot` lifecycle behavior before
 delegating to `draw_fill_series(...)`.
+`histogram(...)` normalizes data plus an optional positive bin count or
+strictly increasing bin-edge vector into backend-neutral `HistogramSeries`
+records. Histograms without explicit color use `ColorOrder` and
+`NextSeriesIndex`; positional axes handles, Name/Value properties, hold, and
+`NextPlot` lifecycle behavior are preserved before delegating to
+`draw_histogram_series(...)`.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

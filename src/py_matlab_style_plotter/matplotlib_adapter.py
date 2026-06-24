@@ -19,6 +19,7 @@ from .interaction import (
     BarSeries,
     ErrorBarSeries,
     FillSeries,
+    HistogramSeries,
     MatlabLikeAxesBase,
     Plot3Series,
     PlotSeries,
@@ -204,6 +205,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 kwargs["facecolor"] = kwargs.pop("color")
             created = axes.fill(item.x, item.y, **kwargs)
             artists.extend(created if isinstance(created, list) else list(created))
+        self._draw_idle(axes)
+        return artists
+
+    def draw_histogram_series(self, axes: Any, series: list[HistogramSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            if "facecolor" in kwargs and "color" not in kwargs:
+                kwargs["color"] = kwargs.pop("facecolor")
+            if item.bins is not None:
+                kwargs.setdefault("bins", item.bins)
+            counts, bins, patches = axes.hist(item.values, **kwargs)
+            artists.append((counts, bins, patches))
         self._draw_idle(axes)
         return artists
 

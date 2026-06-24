@@ -10,6 +10,7 @@ from py_matlab_style_plotter import (
     Camera3DState,
     ErrorBarSeries,
     FillSeries,
+    HistogramSeries,
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
@@ -96,6 +97,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_bar_series = []
         self.drawn_area_series = []
         self.drawn_fill_series = []
+        self.drawn_histogram_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -169,6 +171,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_fill_series(self, axes, series):
         self.drawn_fill_series.append((axes, tuple(series)))
         return [f"fill-{len(self.drawn_fill_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_histogram_series(self, axes, series):
+        self.drawn_histogram_series.append((axes, tuple(series)))
+        return [f"histogram-{len(self.drawn_histogram_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1260,6 +1266,58 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         drawn_axes, series = plotter.drawn_fill_series[0]
         self.assertIs(drawn_axes, axes2)
         self.assertEqual(series[0].color, (0.0, 0.0, 1.0))
+
+    def test_histogram_normalizes_values_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.histogram([1, 2, 2, 3], "DisplayName", "hist")
+
+        self.assertEqual(artists, ["histogram-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_histogram_series[0]
+        self.assertEqual(
+            series[0],
+            HistogramSeries(
+                (1.0, 2.0, 2.0, 3.0),
+                None,
+                (("label", "hist"),),
+                (("facecolor", plotter.DEFAULT_COLOR_ORDER[0]),),
+            ),
+        )
+        self.assertEqual(plotter.next_series_index, 1)
+        self.assertEqual(axes.autoscale_calls, [False])
+
+    def test_histogram_accepts_bin_count_and_edges(self):
+        plotter = FakePlotter(FakeAxes())
+
+        count_series = plotter.normalize_histogram_args(([1, 2, 3], 5))
+        edge_series = plotter.normalize_histogram_args(([1, 2, 3], [0, 1, 2, 3]))
+
+        self.assertEqual(count_series[0].bins, 5)
+        self.assertEqual(edge_series[0].bins, (0.0, 1.0, 2.0, 3.0))
+
+    def test_histogram_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.histogram(axes2, [1, 2, 3], [0, 2, 4])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_histogram_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0].bins, (0.0, 2.0, 4.0))
+
+    def test_histogram_validates_bins(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            plotter.histogram([1, 2, 3], 0)
+        with self.assertRaisesRegex(ValueError, "strictly increasing"):
+            plotter.histogram([1, 2, 3], [0, 2, 2])
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

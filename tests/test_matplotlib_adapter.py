@@ -245,6 +245,7 @@ class FakeAxes:
         self.bar_calls = []
         self.fill_between_calls = []
         self.fill_calls = []
+        self.hist_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -350,6 +351,14 @@ class FakeAxes:
         self.patches.append(patch)
         self.fill_calls.append((tuple(x), tuple(y), kwargs))
         return [patch]
+
+    def hist(self, x, **kwargs):
+        patches = [FakePatch(self)]
+        counts = (1.0,)
+        bins = tuple(kwargs.get("bins", (0.0, 1.0)))
+        self.patches.extend(patches)
+        self.hist_calls.append((tuple(x), kwargs))
+        return counts, bins, patches
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -831,6 +840,23 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                     (0.0, 1.0, 0.0),
                     (0.0, 0.0, 1.0),
                     {"facecolor": "r", "label": "triangle"},
+                )
+            ],
+        )
+
+    def test_histogram_draws_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.histogram([1, 2, 2, 3], [0, 2, 4], "DisplayName", "hist")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.hist_calls,
+            [
+                (
+                    (1.0, 2.0, 2.0, 3.0),
+                    {"label": "hist", "color": plotter.DEFAULT_COLOR_ORDER[0], "bins": (0.0, 2.0, 4.0)},
                 )
             ],
         )

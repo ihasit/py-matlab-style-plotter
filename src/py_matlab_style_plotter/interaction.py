@@ -358,6 +358,16 @@ class FillSeries:
 
 
 @dataclass(frozen=True)
+class HistogramSeries:
+    """One normalized MATLAB-like ``histogram`` series."""
+
+    values: tuple[float, ...]
+    bins: int | tuple[float, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -885,6 +895,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def histogram(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like histogram series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_histogram_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_histogram_series_order(axes, series)
+        artists = self.draw_histogram_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -1066,6 +1091,18 @@ class MatlabLikeAxesBase:
             for item in self._plot_series_from_data(x_data, y_data, None, properties):
                 series.append(FillSeries(item.x, item.y, color, item.properties, item.line_spec))
         return series
+
+    def normalize_histogram_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[HistogramSeries]:
+        """Normalize common MATLAB ``histogram`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if not data_args:
+            raise ValueError("histogram requires data")
+        if len(data_args) > 2:
+            raise ValueError("histogram supports data and optional bin count or edges")
+        values = self._numeric_vector(data_args[0], "histogram data")
+        bins = self._normalize_histogram_bins(data_args[1]) if len(data_args) == 2 else None
+        return [HistogramSeries(values, bins, properties)]
 
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
         """Normalize common MATLAB vertical ``errorbar`` calling forms."""
@@ -1384,6 +1421,20 @@ class MatlabLikeAxesBase:
             raise ValueError(f"{label} must be a color string, RGB triplet, or N-by-3 RGB sequence")
         return vector
 
+    def _normalize_histogram_bins(self, value: Any) -> int | tuple[float, ...]:
+        if isinstance(value, bool):
+            raise ValueError("histogram bin count must be a positive integer")
+        if isinstance(value, int):
+            if value <= 0:
+                raise ValueError("histogram bin count must be a positive integer")
+            return value
+        edges = self._numeric_vector(value, "histogram bin edges")
+        if len(edges) < 2:
+            raise ValueError("histogram bin edges must contain at least two values")
+        if any(edges[index] >= edges[index + 1] for index in range(len(edges) - 1)):
+            raise ValueError("histogram bin edges must be strictly increasing")
+        return edges
+
     def _stairs_points(self, x_values: tuple[float, ...], y_values: tuple[float, ...]) -> tuple[tuple[float, ...], tuple[float, ...]]:
         if len(x_values) != len(y_values):
             raise ValueError("stairs x and y data must have the same length")
@@ -1605,6 +1656,25 @@ class MatlabLikeAxesBase:
                 line_spec = (*line_spec, ("facecolor", color_order[next_index % len(color_order)]))
                 next_index += 1
             ordered.append(FillSeries(item.x, item.y, item.color, item.properties, line_spec))
+        state.color_order = color_order
+        state.next_series_index = next_index
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.color_order = color_order
+            self.next_series_index = next_index
+        return ordered
+
+    def _apply_histogram_series_order(self, axes: Any, series: list[HistogramSeries]) -> list[HistogramSeries]:
+        state = self._current_axes_ui_state(axes)
+        color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        next_index = state.next_series_index
+        ordered: list[HistogramSeries] = []
+        for item in series:
+            line_spec = item.line_spec
+            if not any(name in {"color", "facecolor"} for name, _value in (*line_spec, *item.properties)) and color_order:
+                line_spec = (*line_spec, ("facecolor", color_order[next_index % len(color_order)]))
+                next_index += 1
+            ordered.append(HistogramSeries(item.values, item.bins, item.properties, line_spec))
         state.color_order = color_order
         state.next_series_index = next_index
         self._axes_ui_state[axes] = state
@@ -4481,6 +4551,11 @@ class MatlabLikeAxesBase:
 
     def draw_fill_series(self, axes: Any, series: Sequence[FillSeries]) -> list[Any]:
         """Draw normalized filled polygon series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_histogram_series(self, axes: Any, series: Sequence[HistogramSeries]) -> list[Any]:
+        """Draw normalized histogram series for the concrete backend."""
 
         raise NotImplementedError
 
