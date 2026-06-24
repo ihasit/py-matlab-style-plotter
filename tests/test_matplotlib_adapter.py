@@ -527,6 +527,18 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             ],
         )
 
+    def test_plot_matlab_name_value_properties_map_to_matplotlib_kwargs(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.plot([1, 2], [3, 4], "r--", "LineWidth", 2, "DisplayName", "signal")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.plot_calls,
+            [((1.0, 2.0), (3.0, 4.0), ("r--",), {"linewidth": 2, "label": "signal"})],
+        )
+
     def test_prepare_replace_clears_target_axes_interaction_state(self):
         axes1 = FakeAxes()
         axes2 = FakeAxes()

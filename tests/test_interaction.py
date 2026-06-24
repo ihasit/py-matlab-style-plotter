@@ -777,6 +777,40 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             ],
         )
 
+    def test_plot_accepts_matlab_name_value_properties(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([1, 2], [3, 4], "r--", "LineWidth", 2, "DisplayName", "signal"))
+
+        self.assertEqual(
+            series,
+            [
+                PlotSeries(
+                    (1.0, 2.0),
+                    (3.0, 4.0),
+                    "r--",
+                    (("linewidth", 2), ("label", "signal")),
+                )
+            ],
+        )
+
+    def test_plot_merges_kwargs_with_matlab_property_aliases(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([1, 2], "Color", "red"), {"DisplayName": "series"})
+
+        self.assertEqual(
+            series,
+            [
+                PlotSeries(
+                    (1.0, 2.0),
+                    (1.0, 2.0),
+                    None,
+                    (("color", "red"), ("label", "series")),
+                )
+            ],
+        )
+
     def test_plot_rejects_mismatched_x_y_lengths(self):
         plotter = FakePlotter(FakeAxes())
 

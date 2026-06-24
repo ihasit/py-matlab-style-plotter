@@ -389,6 +389,17 @@ class MatlabLikeAxesBase:
     """
 
     _VALID_NEXT_PLOT = {"replace", "replacechildren", "add"}
+    _PLOT_PROPERTY_ALIASES = {
+        "color": "color",
+        "displayname": "label",
+        "label": "label",
+        "linestyle": "linestyle",
+        "linewidth": "linewidth",
+        "marker": "marker",
+        "markeredgecolor": "markeredgecolor",
+        "markerfacecolor": "markerfacecolor",
+        "markersize": "markersize",
+    }
     _VIEW_3D_PRESETS: dict[View3DPreset, Camera3DState] = {
         "2d": Camera3DState(azim=0.0, elev=90.0),
         "xy": Camera3DState(azim=0.0, elev=90.0),
@@ -641,24 +652,26 @@ class MatlabLikeAxesBase:
 
         if not args:
             raise ValueError("plot requires at least one data argument")
-        properties = tuple((str(key), value) for key, value in (kwargs or {}).items())
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if not data_args:
+            raise ValueError("plot requires at least one data argument")
         series: list[PlotSeries] = []
         index = 0
-        while index < len(args):
-            first = args[index]
+        while index < len(data_args):
+            first = data_args[index]
             if isinstance(first, str):
                 raise ValueError(f"Unexpected line style without data at argument {index + 1}")
-            if index + 1 < len(args) and not isinstance(args[index + 1], str):
+            if index + 1 < len(data_args) and not isinstance(data_args[index + 1], str):
                 x_data = self._plot_data(first, f"argument {index + 1}")
-                y_data = self._plot_data(args[index + 1], f"argument {index + 2}")
+                y_data = self._plot_data(data_args[index + 1], f"argument {index + 2}")
                 index += 2
             else:
                 x_data = None
                 y_data = self._plot_data(first, f"argument {index + 1}")
                 index += 1
             style = None
-            if index < len(args) and isinstance(args[index], str):
-                style = args[index]
+            if index < len(data_args) and isinstance(data_args[index], str):
+                style = data_args[index]
                 index += 1
             series.extend(self._plot_series_from_data(x_data, y_data, style, properties))
         return series
@@ -708,6 +721,28 @@ class MatlabLikeAxesBase:
             return tuple(str(item) for item in value)
         except TypeError:
             return (str(value),)
+
+    def _split_plot_args_and_properties(
+        self,
+        args: Sequence[Any],
+        kwargs: dict[str, Any] | None,
+    ) -> tuple[tuple[Any, ...], tuple[tuple[str, Any], ...]]:
+        properties: list[tuple[str, Any]] = []
+        index = len(args)
+        while index >= 2 and isinstance(args[index - 2], str) and self._is_plot_property_name(args[index - 2]):
+            properties.insert(0, (self._normalize_plot_property_name(args[index - 2]), args[index - 1]))
+            index -= 2
+        properties.extend((self._normalize_plot_property_name(key), value) for key, value in (kwargs or {}).items())
+        return tuple(args[:index]), tuple(properties)
+
+    def _is_plot_property_name(self, value: str) -> bool:
+        normalized = value.strip().replace("_", "").lower()
+        return normalized in self._PLOT_PROPERTY_ALIASES
+
+    def _normalize_plot_property_name(self, value: Any) -> str:
+        raw = str(value)
+        normalized = raw.strip().replace("_", "").lower()
+        return self._PLOT_PROPERTY_ALIASES.get(normalized, raw)
 
     def _numeric_vector(self, value: Any, label: str) -> tuple[float, ...]:
         if isinstance(value, (str, bytes)):
