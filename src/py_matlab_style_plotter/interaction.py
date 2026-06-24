@@ -266,6 +266,7 @@ class PlotSeries:
     y: tuple[float, ...]
     style: str | None = None
     properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -399,6 +400,15 @@ class MatlabLikeAxesBase:
         "markeredgecolor": "markeredgecolor",
         "markerfacecolor": "markerfacecolor",
         "markersize": "markersize",
+    }
+    _LINE_SPEC_COLORS = set("rgbcmykw")
+    _LINE_SPEC_LINESTYLES = ("--", "-.", ":", "-")
+    _LINE_SPEC_MARKERS = ("square", "diamond", "pentagram", "hexagram", "none", "+", "o", "*", ".", "x", "_", "|", "s", "d", "^", "v", ">", "<", "p", "h")
+    _LINE_SPEC_MARKER_ALIASES = {
+        "square": "s",
+        "diamond": "d",
+        "pentagram": "p",
+        "hexagram": "h",
     }
     _VIEW_3D_PRESETS: dict[View3DPreset, Camera3DState] = {
         "2d": Camera3DState(azim=0.0, elev=90.0),
@@ -804,24 +814,27 @@ class MatlabLikeAxesBase:
             x_values = x_data.as_vector()
             if len(x_values) != y_data.row_count:
                 raise ValueError("x vector length must match y row count")
-            return [PlotSeries(x_values, y_data.column(column), style, properties) for column in range(y_data.column_count)]
+            line_spec = self._parse_line_spec(style)
+            return [PlotSeries(x_values, y_data.column(column), style, properties, line_spec) for column in range(y_data.column_count)]
         if not x_data.is_vector and y_data.is_vector:
             y_values = y_data.as_vector()
             if x_data.row_count != len(y_values):
                 raise ValueError("x row count must match y vector length")
-            return [PlotSeries(x_data.column(column), y_values, style, properties) for column in range(x_data.column_count)]
+            line_spec = self._parse_line_spec(style)
+            return [PlotSeries(x_data.column(column), y_values, style, properties, line_spec) for column in range(x_data.column_count)]
         if not x_data.is_vector and not y_data.is_vector:
             if x_data.row_count != y_data.row_count or x_data.column_count != y_data.column_count:
                 raise ValueError("x and y matrices must have the same shape")
+            line_spec = self._parse_line_spec(style)
             return [
-                PlotSeries(x_data.column(column), y_data.column(column), style, properties)
+                PlotSeries(x_data.column(column), y_data.column(column), style, properties, line_spec)
                 for column in range(y_data.column_count)
             ]
         x_values = x_data.as_vector()
         y_values = y_data.as_vector()
         if len(x_values) != len(y_values):
             raise ValueError("x and y data must have the same length")
-        return [PlotSeries(x_values, y_values, style, properties)]
+        return [PlotSeries(x_values, y_values, style, properties, self._parse_line_spec(style))]
 
     def _plot_y_only_series(
         self,
@@ -832,9 +845,50 @@ class MatlabLikeAxesBase:
         if y_data.is_vector:
             y_values = y_data.as_vector()
             x_values = tuple(float(item) for item in range(1, len(y_values) + 1))
-            return [PlotSeries(x_values, y_values, style, properties)]
+            return [PlotSeries(x_values, y_values, style, properties, self._parse_line_spec(style))]
         x_values = tuple(float(item) for item in range(1, y_data.row_count + 1))
-        return [PlotSeries(x_values, y_data.column(column), style, properties) for column in range(y_data.column_count)]
+        line_spec = self._parse_line_spec(style)
+        return [PlotSeries(x_values, y_data.column(column), style, properties, line_spec) for column in range(y_data.column_count)]
+
+    def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
+        if not style:
+            return ()
+        remaining = style.strip()
+        if not remaining:
+            return ()
+        parsed: dict[str, Any] = {}
+        while remaining:
+            matched = False
+            for token in self._LINE_SPEC_LINESTYLES:
+                if remaining.startswith(token):
+                    if "linestyle" in parsed:
+                        return ()
+                    parsed["linestyle"] = token
+                    remaining = remaining[len(token) :]
+                    matched = True
+                    break
+            if matched:
+                continue
+            for token in self._LINE_SPEC_MARKERS:
+                if remaining.startswith(token):
+                    if "marker" in parsed:
+                        return ()
+                    parsed["marker"] = self._LINE_SPEC_MARKER_ALIASES.get(token, token)
+                    remaining = remaining[len(token) :]
+                    matched = True
+                    break
+            if matched:
+                continue
+            color = remaining[0]
+            if color in self._LINE_SPEC_COLORS:
+                if "color" in parsed:
+                    return ()
+                parsed["color"] = color
+                remaining = remaining[1:]
+                continue
+            return ()
+        order = ("color", "linestyle", "marker")
+        return tuple((key, parsed[key]) for key in order if key in parsed)
 
     def _set_tool_mode(self, mode: InteractionMode, value: bool | str | None) -> InteractionMode:
         if value is None:

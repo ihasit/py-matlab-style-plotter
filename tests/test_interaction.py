@@ -724,7 +724,13 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             series,
             (
                 PlotSeries((1.0, 2.0, 3.0), (2.0, 4.0, 6.0), None, (("linewidth", 2),)),
-                PlotSeries((3.0, 4.0), (5.0, 6.0), "r--", (("linewidth", 2),)),
+                PlotSeries(
+                    (3.0, 4.0),
+                    (5.0, 6.0),
+                    "r--",
+                    (("linewidth", 2),),
+                    (("color", "r"), ("linestyle", "--")),
+                ),
             ),
         )
         self.assertEqual(axes.autoscale_calls, [False])
@@ -789,8 +795,8 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(
             series,
             [
-                PlotSeries((1.0, 2.0), (3.0, 4.0), "o"),
-                PlotSeries((10.0, 20.0), (30.0, 40.0), "o"),
+                PlotSeries((1.0, 2.0), (3.0, 4.0), "o", (), (("marker", "o"),)),
+                PlotSeries((10.0, 20.0), (30.0, 40.0), "o", (), (("marker", "o"),)),
             ],
         )
 
@@ -807,9 +813,26 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
                     (3.0, 4.0),
                     "r--",
                     (("linewidth", 2), ("label", "signal")),
+                    (("color", "r"), ("linestyle", "--")),
                 )
             ],
         )
+
+    def test_plot_parses_matlab_line_spec(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([1, 2], [3, 4], "--or"))
+
+        self.assertEqual(series[0].style, "--or")
+        self.assertEqual(series[0].line_spec, (("color", "r"), ("linestyle", "--"), ("marker", "o")))
+
+    def test_plot_keeps_unparsed_line_spec_as_raw_style(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([1, 2], [3, 4], "custom-style"))
+
+        self.assertEqual(series[0].style, "custom-style")
+        self.assertEqual(series[0].line_spec, ())
 
     def test_plot_merges_kwargs_with_matlab_property_aliases(self):
         plotter = FakePlotter(FakeAxes())

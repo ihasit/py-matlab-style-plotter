@@ -16,7 +16,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-like exploration tool state snapshots with `tool_state(mode)`, `pan_state()`, `zoom_state()`, and `rotate3d_state()` exposing `Enable`-style on/off state plus tool properties
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
-- MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, style` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
+- MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
 - Matplotlib `replace` / `replacechildren` plot lifecycles clear stale data tips, selections, coordinate readouts, and temporary zoom/brush boxes for the target axes
 - hold state notifications with `on_hold_changed(enabled)`
 - explicit `auto` / `manual` x/y limit modes
@@ -66,10 +66,12 @@ matrix columns. MATLAB-style Name/Value pairs at the end of the argument list
 are accepted for common line properties such as `LineWidth`, `LineStyle`,
 `Marker`, `Color`, `MarkerSize`, and `DisplayName`; names are normalized to
 backend-friendly property keys, with `DisplayName` mapped to `label` for
-Matplotlib. The method runs `prepare_for_plot(...)`, delegates actual artist
-creation to `draw_plot_series(...)`, then calls `after_plot(...)`. Backends can
-implement one hook and inherit MATLAB-like `hold`/`NextPlot` behavior
-consistently.
+Matplotlib. MATLAB LineSpec strings such as `r--o`, `k:`, and `x` are parsed
+into backend-neutral `color`, `linestyle`, and `marker` properties, while
+unrecognized style strings are preserved for backends that can handle them.
+The method runs `prepare_for_plot(...)`, delegates actual artist creation to
+`draw_plot_series(...)`, then calls `after_plot(...)`. Backends can implement
+one hook and inherit MATLAB-like `hold`/`NextPlot` behavior consistently.
 
 ## Matplotlib Demo
 

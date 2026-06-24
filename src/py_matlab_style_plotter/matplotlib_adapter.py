@@ -98,8 +98,8 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def draw_plot_series(self, axes: Any, series: list[PlotSeries]) -> list[Any]:
         artists: list[Any] = []
         for item in series:
-            kwargs = dict(item.properties)
-            if item.style is None:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            if item.style is None or item.line_spec:
                 created = axes.plot(item.x, item.y, **kwargs)
             else:
                 created = axes.plot(item.x, item.y, item.style, **kwargs)

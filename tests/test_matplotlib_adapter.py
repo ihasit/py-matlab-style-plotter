@@ -490,7 +490,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(
             axes.plot_calls,
             [
-                ((0.0, 1.0), (2.0, 3.0), ("k:",), {"label": "signal", "linewidth": 2}),
+                ((0.0, 1.0), (2.0, 3.0), (), {"color": "k", "linestyle": ":", "label": "signal", "linewidth": 2}),
                 ((1.0, 2.0), (4.0, 5.0), (), {"label": "signal", "linewidth": 2}),
             ],
         )
@@ -534,8 +534,8 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(
             axes.plot_calls,
             [
-                ((10.0, 20.0, 30.0), (1.0, 2.0, 3.0), ("x",), {}),
-                ((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), ("x",), {}),
+                ((10.0, 20.0, 30.0), (1.0, 2.0, 3.0), (), {"marker": "x"}),
+                ((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), (), {"marker": "x"}),
             ],
         )
 
@@ -548,8 +548,27 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(len(artists), 1)
         self.assertEqual(
             axes.plot_calls,
-            [((1.0, 2.0), (3.0, 4.0), ("r--",), {"linewidth": 2, "label": "signal"})],
+            [((1.0, 2.0), (3.0, 4.0), (), {"color": "r", "linestyle": "--", "linewidth": 2, "label": "signal"})],
         )
+
+    def test_plot_line_spec_properties_are_overridden_by_name_value(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.plot([1, 2], [3, 4], "r--o", "Color", "blue")
+
+        self.assertEqual(
+            axes.plot_calls,
+            [((1.0, 2.0), (3.0, 4.0), (), {"color": "blue", "linestyle": "--", "marker": "o"})],
+        )
+
+    def test_plot_unparsed_line_spec_is_passed_as_raw_style(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.plot([1, 2], [3, 4], "custom-style")
+
+        self.assertEqual(axes.plot_calls, [((1.0, 2.0), (3.0, 4.0), ("custom-style",), {})])
 
     def test_prepare_replace_clears_target_axes_interaction_state(self):
         axes1 = FakeAxes()
