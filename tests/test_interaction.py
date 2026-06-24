@@ -2678,6 +2678,24 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.clim("manual")
         self.assertEqual(plotter.clim_mode, "manual")
 
+    def test_caxis_matches_clim_color_limit_behavior(self):
+        axes = FakeAxes()
+        axes.limits = AxesLimits((0.0, 10.0), (-1.0, 1.0), None, (0.0, 1.0))
+        plotter = FakePlotter(axes)
+
+        self.assertEqual(plotter.caxis(), (0.0, 1.0))
+
+        plotter.caxis([0.25, 0.75])
+        self.assertEqual(axes.limits.clim, (0.25, 0.75))
+        self.assertEqual(plotter.caxis("mode"), "manual")
+
+        plotter.caxis("auto")
+        self.assertEqual(plotter.clim_mode, "auto")
+        self.assertEqual(axes.autoscale_clim_calls, 1)
+
+        plotter.caxis("manual")
+        self.assertEqual(plotter.clim_mode, "manual")
+
     def test_clim_rejects_invalid_values(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)

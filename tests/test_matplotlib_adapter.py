@@ -2092,6 +2092,20 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(collection.autoscale_count, 1)
         self.assertEqual(plotter.clim_mode, "auto")
 
+    def test_caxis_maps_to_matplotlib_color_limit_behavior(self):
+        axes = FakeAxes()
+        image = FakeMappable()
+        axes.images = [image]
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.caxis([0.25, 0.75])
+        self.assertEqual(axes.get_clim(), (0.25, 0.75))
+        self.assertEqual(plotter.caxis("mode"), "manual")
+
+        plotter.caxis("auto")
+        self.assertEqual(image.autoscale_count, 1)
+        self.assertEqual(plotter.clim_mode, "auto")
+
     def test_toggle_link_y_axes_syncs_and_unlinks_figure_axes(self):
         figure = FakeFigure()
         axes1 = FakeAxes(figure=figure)

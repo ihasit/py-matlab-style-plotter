@@ -2803,6 +2803,9 @@ class MatlabLikeAxesBase:
         self.set_clim(limits[0], limits[1])
         return None
 
+    def caxis(self, value: Literal["auto", "manual", "mode"] | Sequence[float] | None = None) -> tuple[float, float] | LimitMode | None:
+        return self.clim(value)
+
     def daspect(
         self,
         value: Literal["auto", "manual", "mode"] | Sequence[float] | None = None,

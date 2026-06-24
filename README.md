@@ -50,7 +50,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style explicit aspect ratio helpers with `daspect()` / `daspect([x, y, z])` and `pbaspect()` / `pbaspect([x, y, z])`, including `auto`, `manual`, and `mode`
 - MATLAB-style `xlim`, `ylim`, and `zlim` commands with `[min, max]`, `auto`, `manual`, `mode`, or no-argument current-limit queries
 - MATLAB-style `axis()` current-limit queries, `axis("state")` coordinate-limit auto/manual queries, numeric limit vectors via `axis([xmin, xmax, ymin, ymax])`, 3D `axis([xmin, xmax, ymin, ymax, zmin, zmax])`, and color limits with `axis([xmin, xmax, ymin, ymax, zmin, zmax, cmin, cmax])`
-- direct color limit control with `set_clim(cmin, cmax)` and MATLAB-style `clim([cmin, cmax])`, `clim auto`, `clim manual`, `clim mode`, or no-argument current-limit queries
+- direct color limit control with `set_clim(cmin, cmax)`, MATLAB-style `clim([cmin, cmax])`, `clim auto`, `clim manual`, `clim mode`, or no-argument current-limit queries, plus `caxis(...)` as the traditional MATLAB-compatible alias
 - active-axes-scoped view history for home/back/forward, including 3D camera and z limits, with `can_home`/`can_back`/`can_forward` UI state queries and `on_view_history_changed` notifications
 - MATLAB-style `linkaxes(axes, "x"|"y"|"xy"|"off")` linked-limit control, defaulting to `xy` and using MATLAB-like initial union limits before subsequent pan/zoom synchronization
 - read-only view snapshots with `current_view_state()`
