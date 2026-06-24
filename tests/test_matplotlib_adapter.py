@@ -243,6 +243,7 @@ class FakeAxes:
         self.scatter_calls = []
         self.stem_calls = []
         self.bar_calls = []
+        self.fill_between_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -329,6 +330,16 @@ class FakeAxes:
         self.patches.extend(bars)
         self.bar_calls.append((tuple(x), tuple(height), kwargs))
         return bars
+
+    def fill_between(self, x, y1, y2=0, **kwargs):
+        collection = FakeMappable()
+        collection.x = tuple(x)
+        collection.y1 = tuple(y1)
+        collection.y2 = tuple(y2)
+        collection.kwargs = kwargs
+        self.collections.append(collection)
+        self.fill_between_calls.append((tuple(x), tuple(y1), tuple(y2), kwargs))
+        return collection
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -768,6 +779,31 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                     (10.0, 20.0),
                     {"color": "r", "label": "bars"},
                 )
+            ],
+        )
+
+    def test_area_draws_stacked_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.area([1, 2], [[10, 100], [20, 200]], "r--o", "DisplayName", "area")
+
+        self.assertEqual(len(artists), 2)
+        self.assertEqual(
+            axes.fill_between_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (0.0, 0.0),
+                    (10.0, 20.0),
+                    {"color": "r", "label": "area", "facecolor": "r"},
+                ),
+                (
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    (110.0, 220.0),
+                    {"color": "r", "label": "area", "facecolor": "r"},
+                ),
             ],
         )
 

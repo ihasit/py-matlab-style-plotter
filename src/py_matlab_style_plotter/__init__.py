@@ -1,6 +1,7 @@
 """MATLAB-like plotter primitives."""
 
 from .interaction import (
+    AreaSeries,
     AxisDirection,
     AxisScale,
     AspectRatioMode,
@@ -49,6 +50,7 @@ from .matplotlib_adapter import (
 from .matplotlib_bridge import MatplotlibEventBridge
 
 __all__ = [
+    "AreaSeries",
     "AxesLimits",
     "AspectMode",
     "AspectRatioMode",

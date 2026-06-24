@@ -335,6 +335,18 @@ class BarSeries:
 
 
 @dataclass(frozen=True)
+class AreaSeries:
+    """One normalized MATLAB-like stacked ``area`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    baseline: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -830,6 +842,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def area(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like stacked area series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_area_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_area_series_order(axes, series)
+        artists = self.draw_area_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -984,6 +1011,11 @@ class MatlabLikeAxesBase:
             BarSeries(series.x, series.y, series.style, series.properties, series.line_spec)
             for series in self.normalize_plot_args(args, kwargs)
         ]
+
+    def normalize_area_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[AreaSeries]:
+        """Normalize common MATLAB stacked ``area`` calling forms."""
+
+        return self._area_series_from_plot_series(self.normalize_plot_args(args, kwargs))
 
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
         """Normalize common MATLAB vertical ``errorbar`` calling forms."""
@@ -1264,6 +1296,20 @@ class MatlabLikeAxesBase:
         x_values, y_values = self._stairs_points(series.x, series.y)
         return PlotSeries(x_values, y_values, series.style, series.properties, series.line_spec)
 
+    def _area_series_from_plot_series(self, series: Sequence[PlotSeries]) -> list[AreaSeries]:
+        grouped: list[AreaSeries] = []
+        baselines: dict[tuple[float, ...], tuple[float, ...]] = {}
+        for item in series:
+            baseline = baselines.get(item.x)
+            if baseline is None:
+                baseline = tuple(0.0 for _value in item.y)
+            if len(baseline) != len(item.y):
+                raise ValueError("area series with shared x data must have matching y lengths")
+            top = tuple(base + value for base, value in zip(baseline, item.y))
+            grouped.append(AreaSeries(item.x, top, baseline, item.style, item.properties, item.line_spec))
+            baselines[item.x] = top
+        return grouped
+
     def _stairs_points(self, x_values: tuple[float, ...], y_values: tuple[float, ...]) -> tuple[tuple[float, ...], tuple[float, ...]]:
         if len(x_values) != len(y_values):
             raise ValueError("stairs x and y data must have the same length")
@@ -1461,6 +1507,14 @@ class MatlabLikeAxesBase:
         ordered = self._apply_plot_series_order(axes, proxy)
         return [
             BarSeries(item.x, item.y, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
+            for item, ordered_item in zip(series, ordered)
+        ]
+
+    def _apply_area_series_order(self, axes: Any, series: list[AreaSeries]) -> list[AreaSeries]:
+        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
+        ordered = self._apply_plot_series_order(axes, proxy)
+        return [
+            AreaSeries(item.x, item.y, item.baseline, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
             for item, ordered_item in zip(series, ordered)
         ]
 
@@ -4322,6 +4376,11 @@ class MatlabLikeAxesBase:
 
     def draw_bar_series(self, axes: Any, series: Sequence[BarSeries]) -> list[Any]:
         """Draw normalized vertical bar series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_area_series(self, axes: Any, series: Sequence[AreaSeries]) -> list[Any]:
+        """Draw normalized stacked area series for the concrete backend."""
 
         raise NotImplementedError
 

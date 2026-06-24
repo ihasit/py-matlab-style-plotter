@@ -1,6 +1,7 @@
 import unittest
 
 from py_matlab_style_plotter import (
+    AreaSeries,
     AxesLimits,
     AspectMode,
     AxisDirection,
@@ -92,6 +93,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_scatter_series = []
         self.drawn_stem_series = []
         self.drawn_bar_series = []
+        self.drawn_area_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -157,6 +159,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_bar_series(self, axes, series):
         self.drawn_bar_series.append((axes, tuple(series)))
         return [f"bar-{len(self.drawn_bar_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_area_series(self, axes, series):
+        self.drawn_area_series.append((axes, tuple(series)))
+        return [f"area-{len(self.drawn_area_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1138,6 +1144,58 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertIs(drawn_axes, axes2)
         self.assertEqual(series[0].x, (10.0, 20.0))
         self.assertEqual(series[0].y, (30.0, 40.0))
+
+    def test_area_normalizes_y_series_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.area([10, 20, 30], "DisplayName", "area")
+
+        self.assertEqual(artists, ["area-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_area_series[0]
+        self.assertEqual(
+            series[0],
+            AreaSeries(
+                (1.0, 2.0, 3.0),
+                (10.0, 20.0, 30.0),
+                (0.0, 0.0, 0.0),
+                None,
+                (("label", "area"),),
+                (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")),
+            ),
+        )
+        self.assertEqual(axes.autoscale_calls, [False])
+
+    def test_area_matrix_columns_stack_by_shared_x_data(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.area([1, 2], [[10, 100], [20, 200]])
+
+        _axes, series = plotter.drawn_area_series[0]
+        self.assertEqual(series[0].baseline, (0.0, 0.0))
+        self.assertEqual(series[0].y, (10.0, 20.0))
+        self.assertEqual(series[1].baseline, (10.0, 20.0))
+        self.assertEqual(series[1].y, (110.0, 220.0))
+        self.assertEqual(series[0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]), ("linestyle", "-")))
+        self.assertEqual(series[1].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[1]), ("linestyle", "-")))
+
+    def test_area_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.area(axes2, [10, 20], [30, 40])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_area_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+        self.assertEqual(series[0].baseline, (0.0, 0.0))
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

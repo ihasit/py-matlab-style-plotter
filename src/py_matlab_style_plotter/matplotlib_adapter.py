@@ -7,6 +7,7 @@ from math import isfinite
 from typing import Any
 
 from .interaction import (
+    AreaSeries,
     AspectMode,
     AxesLimits,
     AxisDirection,
@@ -177,6 +178,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 artists.extend(created)
             except TypeError:
                 artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_area_series(self, axes: Any, series: list[AreaSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            color = kwargs.get("color")
+            kwargs.pop("marker", None)
+            kwargs.pop("linestyle", None)
+            if color is not None:
+                kwargs.setdefault("facecolor", color)
+            created = axes.fill_between(item.x, item.baseline, item.y, **kwargs)
+            artists.append(created)
         self._draw_idle(axes)
         return artists
 
