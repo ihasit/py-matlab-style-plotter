@@ -170,6 +170,7 @@ class AxesUIState:
     ylim_mode: LimitMode = "auto"
     zlim_mode: LimitMode = "auto"
     clim_mode: LimitMode = "auto"
+    colormap: str | tuple[tuple[float, float, float], ...] = "default"
     xtick: tuple[float, ...] = ()
     ytick: tuple[float, ...] = ()
     ztick: tuple[float, ...] = ()
@@ -575,6 +576,7 @@ class MatlabLikeAxesBase:
         self.ylim_mode: LimitMode = "auto"
         self.zlim_mode: LimitMode = "auto"
         self.clim_mode: LimitMode = "auto"
+        self.colormap_value: str | tuple[tuple[float, float, float], ...] = "default"
         self.xtick: tuple[float, ...] = ()
         self.ytick: tuple[float, ...] = ()
         self.ztick: tuple[float, ...] = ()
@@ -1078,6 +1080,29 @@ class MatlabLikeAxesBase:
         if axes is self.active_axes:
             self.color_order = color_order
             self.next_series_index = 0
+        return None
+
+    def colormap(
+        self,
+        value: str | Sequence[Sequence[float]] | None = None,
+        axes: Any | None = None,
+    ) -> str | tuple[tuple[float, float, float], ...] | None:
+        axes = axes if axes is not None else self.require_active_axes()
+        if value is None:
+            state = self._current_axes_ui_state(axes)
+            return state.colormap
+        if isinstance(value, str):
+            normalized: str | tuple[tuple[float, float, float], ...] = value.strip().lower()
+            if not normalized:
+                raise ValueError("colormap name must not be empty")
+        else:
+            normalized = self._normalize_color_order(value)
+        self.set_colormap(axes, normalized)
+        state = self._current_axes_ui_state(axes)
+        state.colormap = normalized
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.colormap_value = normalized
         return None
 
     def linestyleorder(
@@ -3499,6 +3524,7 @@ class MatlabLikeAxesBase:
             ylim_mode=self.ylim_mode,
             zlim_mode=self.zlim_mode,
             clim_mode=self.clim_mode,
+            colormap=self.colormap_value,
             xtick=self.xtick,
             ytick=self.ytick,
             ztick=self.ztick,
@@ -3576,6 +3602,7 @@ class MatlabLikeAxesBase:
         self.ylim_mode = state.ylim_mode
         self.zlim_mode = state.zlim_mode
         self.clim_mode = state.clim_mode
+        self.colormap_value = state.colormap
         self.xtick = state.xtick
         self.ytick = state.ytick
         self.ztick = state.ztick
@@ -5024,3 +5051,8 @@ class MatlabLikeAxesBase:
         """Set colorbar visibility for the concrete backend."""
 
         return False
+
+    def set_colormap(self, axes: Any, value: str | tuple[tuple[float, float, float], ...]) -> None:
+        """Set colormap for the concrete backend."""
+
+        pass

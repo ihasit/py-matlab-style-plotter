@@ -54,9 +54,13 @@ class FakeColorbar:
 class FakeMappable:
     def __init__(self):
         self.autoscale_count = 0
+        self.cmap_values = []
 
     def autoscale(self):
         self.autoscale_count += 1
+
+    def set_cmap(self, value):
+        self.cmap_values.append(value)
 
 
 class FakeGridLine:
@@ -1682,6 +1686,21 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertFalse(plotter.colorbar("on"))
         self.assertEqual(axes.figure.colorbar_calls, [])
+
+    def test_colormap_applies_to_images_and_collections(self):
+        axes = FakeAxes()
+        image = FakeMappable()
+        collection = FakeMappable()
+        axes.images = [image]
+        axes.collections = [collection]
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.colormap("hot")
+
+        self.assertEqual(image.cmap_values, ["hot"])
+        self.assertEqual(collection.cmap_values, ["hot"])
+        self.assertEqual(plotter.colormap(), "hot")
+        self.assertEqual(axes.figure.canvas.draw_count, 1)
 
     def test_toggle_legend_ignores_axes_without_public_labels(self):
         axes = FakeAxes()

@@ -76,6 +76,7 @@ class FakeAxes:
         self.box_visible = True
         self.legend_visible = False
         self.colorbar_visible = False
+        self.colormap_value = "default"
         self.clear_calls = []
         self.autoscale_calls = []
         self.autoscale_clim_calls = 0
@@ -285,6 +286,9 @@ class FakePlotter(MatlabLikeAxesBase):
     def set_colorbar_visible(self, axes, visible):
         axes.colorbar_visible = visible
         return axes.colorbar_visible
+
+    def set_colormap(self, axes, value):
+        axes.colormap_value = value
 
     def begin_zoom_box(self, axes, x, y):
         self.zoom_box_events.append(("begin", axes, x, y))
@@ -667,6 +671,42 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Unsupported colorbar value"):
             plotter.colorbar("bad")
+
+    def test_colormap_queries_sets_names_and_rgb_matrix(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        self.assertEqual(plotter.colormap(), "default")
+
+        self.assertIsNone(plotter.colormap(" Hot "))
+        self.assertEqual(axes.colormap_value, "hot")
+        self.assertEqual(plotter.colormap(), "hot")
+
+        rgb = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+        self.assertIsNone(plotter.colormap([(1, 0, 0), (0, 1, 0)]))
+        self.assertEqual(axes.colormap_value, rgb)
+        self.assertEqual(plotter.colormap(), rgb)
+
+    def test_colormap_is_scoped_per_axes(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.colormap("hot", axes=axes2)
+
+        self.assertEqual(plotter.colormap(axes=axes1), "default")
+        self.assertEqual(plotter.colormap(axes=axes2), "hot")
+        self.assertEqual(axes2.colormap_value, "hot")
+
+    def test_colormap_rejects_bad_values(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "colormap name"):
+            plotter.colormap(" ")
+        with self.assertRaisesRegex(ValueError, "N-by-3"):
+            plotter.colormap([(1, 0)])
+        with self.assertRaisesRegex(ValueError, "between 0 and 1"):
+            plotter.colormap([(1.2, 0, 0)])
 
     def test_set_mode_is_noop_when_mode_is_unchanged(self):
         axes = FakeAxes()

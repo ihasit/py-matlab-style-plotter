@@ -982,6 +982,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return True
 
+    def set_colormap(self, axes: Any, value: str | tuple[tuple[float, float, float], ...]) -> None:
+        for mappable in [*getattr(axes, "images", []), *getattr(axes, "collections", [])]:
+            set_cmap = getattr(mappable, "set_cmap", None)
+            if set_cmap is not None:
+                set_cmap(value)
+        self._draw_idle(axes)
+
     def toggle_link_x_axes(self, axes: Any | None = None) -> bool:
         linked = self.toggle_link_axes("x", axes=axes)
         self.x_axes_linked = linked
