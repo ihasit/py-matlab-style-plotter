@@ -156,6 +156,8 @@ class ViewState:
     camera_projection: CameraProjection = "orthographic"
     hold_enabled: bool = False
     next_plot: NextPlotMode = "replace"
+    color_order: tuple[tuple[float, float, float], ...] = ()
+    next_series_index: int = 0
     camera: "Camera3DState | None" = None
 
 
@@ -229,6 +231,8 @@ class AxesUIState:
     camera_projection: CameraProjection = "orthographic"
     hold_enabled: bool = False
     next_plot: NextPlotMode = "replace"
+    color_order: tuple[tuple[float, float, float], ...] = ()
+    next_series_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -410,6 +414,15 @@ class MatlabLikeAxesBase:
         "pentagram": "p",
         "hexagram": "h",
     }
+    DEFAULT_COLOR_ORDER: tuple[tuple[float, float, float], ...] = (
+        (0.0, 0.4470, 0.7410),
+        (0.8500, 0.3250, 0.0980),
+        (0.9290, 0.6940, 0.1250),
+        (0.4940, 0.1840, 0.5560),
+        (0.4660, 0.6740, 0.1880),
+        (0.3010, 0.7450, 0.9330),
+        (0.6350, 0.0780, 0.1840),
+    )
     _VIEW_3D_PRESETS: dict[View3DPreset, Camera3DState] = {
         "2d": Camera3DState(azim=0.0, elev=90.0),
         "xy": Camera3DState(azim=0.0, elev=90.0),
@@ -425,6 +438,8 @@ class MatlabLikeAxesBase:
         self.mode = InteractionMode.NONE
         self.hold_enabled = False
         self.next_plot: NextPlotMode = "replace"
+        self.color_order = self.DEFAULT_COLOR_ORDER
+        self.next_series_index = 0
         self.xlim_mode: LimitMode = "auto"
         self.ylim_mode: LimitMode = "auto"
         self.zlim_mode: LimitMode = "auto"
@@ -656,6 +671,7 @@ class MatlabLikeAxesBase:
         self.set_active_axes(axes)
         series = self.normalize_plot_args(args, kwargs)
         self.prepare_for_plot(axes)
+        series = self._apply_plot_color_order(axes, series)
         artists = self.draw_plot_series(axes, series)
         self.after_plot(axes)
         return artists
@@ -849,6 +865,37 @@ class MatlabLikeAxesBase:
         x_values = tuple(float(item) for item in range(1, y_data.row_count + 1))
         line_spec = self._parse_line_spec(style)
         return [PlotSeries(x_values, y_data.column(column), style, properties, line_spec) for column in range(y_data.column_count)]
+
+    def _apply_plot_color_order(self, axes: Any, series: list[PlotSeries]) -> list[PlotSeries]:
+        state = self._current_axes_ui_state(axes)
+        color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        next_index = state.next_series_index
+        colored: list[PlotSeries] = []
+        for item in series:
+            if self._series_has_explicit_color(item) or not color_order or (item.style is not None and not item.line_spec):
+                colored.append(item)
+                continue
+            color = color_order[next_index % len(color_order)]
+            next_index += 1
+            colored.append(
+                PlotSeries(
+                    item.x,
+                    item.y,
+                    item.style,
+                    item.properties,
+                    (*item.line_spec, ("color", color)),
+                )
+            )
+        state.color_order = color_order
+        state.next_series_index = next_index
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.color_order = color_order
+            self.next_series_index = next_index
+        return colored
+
+    def _series_has_explicit_color(self, series: PlotSeries) -> bool:
+        return any(name == "color" for name, _value in (*series.line_spec, *series.properties))
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
         if not style:
@@ -2453,6 +2500,8 @@ class MatlabLikeAxesBase:
             camera_projection=state.camera_projection,
             hold_enabled=state.hold_enabled,
             next_plot=state.next_plot,
+            color_order=state.color_order,
+            next_series_index=state.next_series_index,
             camera=camera,
         )
 
@@ -2531,6 +2580,8 @@ class MatlabLikeAxesBase:
             camera_projection=self.camera_projection,
             hold_enabled=self.hold_enabled,
             next_plot=self.next_plot,
+            color_order=self.color_order,
+            next_series_index=self.next_series_index,
         )
 
     def _load_axes_ui_state(self, axes: Any | None) -> None:
@@ -2629,6 +2680,8 @@ class MatlabLikeAxesBase:
             self.set_camera_projection(axes, state.camera_projection)
         self.hold_enabled = state.hold_enabled
         self.next_plot = state.next_plot
+        self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        self.next_series_index = state.next_series_index
 
     def home(self) -> bool:
         if not self.can_home():
@@ -3056,7 +3109,7 @@ class MatlabLikeAxesBase:
         self.clear_children(axes, reset_properties=True)
         self.clear_view_history(axes)
         self.reset_axes_properties(axes)
-        self._axes_ui_state[axes] = AxesUIState()
+        self._axes_ui_state[axes] = AxesUIState(color_order=self.DEFAULT_COLOR_ORDER)
         if axes is self.active_axes:
             self._load_axes_ui_state(axes)
 
@@ -3128,6 +3181,8 @@ class MatlabLikeAxesBase:
         self.camera_projection = state.camera_projection
         self.hold_enabled = state.hold_enabled
         self.next_plot = state.next_plot
+        self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        self.next_series_index = state.next_series_index
         self.set_aspect(axes, state.aspect)
         self.set_box_aspect(axes, state.box_aspect)
         self.set_data_aspect_ratio(axes, state.data_aspect_ratio)
