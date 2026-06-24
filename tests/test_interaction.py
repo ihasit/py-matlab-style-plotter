@@ -1018,6 +1018,40 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(axes2.clear_calls, [True])
         self.assertIs(plotter.drawn_series[0][0], axes2)
 
+    def test_line_adds_2d_primitive_without_nextplot_clear_or_series_order(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.line([1, 2], [3, 4], "Color", "red")
+
+        self.assertEqual(artists, ["line-1-0"])
+        self.assertEqual(axes.clear_calls, [])
+        _axes, series = plotter.drawn_series[0]
+        self.assertEqual(series[0], PlotSeries((1.0, 2.0), (3.0, 4.0), None, (("color", "red"),)))
+
+    def test_line_adds_3d_primitive_without_nextplot_clear(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.line([1, 2], [3, 4], [5, 6], "LineStyle", "--")
+
+        self.assertEqual(artists, ["line3-1-0"])
+        self.assertEqual(axes.clear_calls, [])
+        _axes, series = plotter.drawn_plot3_series[0]
+        self.assertEqual(series[0], Plot3Series((1.0, 2.0), (3.0, 4.0), (5.0, 6.0), None, (("linestyle", "--"),)))
+
+    def test_line_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.line(axes2, [1, 2], [3, 4])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [])
+        self.assertIs(plotter.drawn_series[0][0], axes2)
+
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())
 

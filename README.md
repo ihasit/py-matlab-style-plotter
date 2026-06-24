@@ -17,6 +17,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
 - MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
+- MATLAB-style `line(...)` primitive helper for adding 2D/3D line objects without `NextPlot` clearing or default series-order assignment
 - MATLAB-style `plot3(...)` command template with repeated `x, y, z, LineSpec` groups and the same backend-neutral series-order and `NextPlot` lifecycle handling as `plot(...)`
 - MATLAB-style `stairs(...)` command template that expands stairstep x/y points while reusing `plot(...)` parsing, styling, series-order, and lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
@@ -92,6 +93,10 @@ Name/Value, ColorOrder, LineStyleOrder, hold, and `NextPlot` behavior as
 2D `plot(...)`.
 `stairs(...)` normalizes the same x/y data forms as `plot(...)`, expands each
 series into stairstep points, then draws through the same backend line hook.
+`line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
+it accepts MATLAB Name/Value properties and positional axes handles, but unlike
+`plot(...)` it does not apply `NextPlot` clearing or default series-order
+styling.
 
 ## Matplotlib Demo
 

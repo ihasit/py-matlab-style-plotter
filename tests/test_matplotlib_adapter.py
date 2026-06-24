@@ -629,6 +629,26 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             ],
         )
 
+    def test_line_draws_without_nextplot_clear_or_default_series_order(self):
+        axes = FakeAxes()
+        existing = FakeLine([0], [0], label="old")
+        axes.set_lines([existing])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.line([1, 2], [3, 4], "Color", "red")
+
+        self.assertEqual(len(artists), 1)
+        self.assertIn(existing, axes.lines)
+        self.assertEqual(axes.plot_calls, [((1.0, 2.0), (3.0, 4.0), (), {"color": "red"})])
+
+    def test_line_draws_3d_primitive_through_matplotlib_axes(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.line([1, 2], [3, 4], [5, 6], "LineStyle", "--")
+
+        self.assertEqual(axes.plot_calls, [((1.0, 2.0), (3.0, 4.0), (5.0, 6.0), (), {"linestyle": "--"})])
+
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)

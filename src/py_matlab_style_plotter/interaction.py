@@ -723,6 +723,26 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Add MATLAB-like line primitive without applying NextPlot clearing."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) == 2:
+            series = self.normalize_plot_args(data_args, dict(properties))
+            artists = self.draw_plot_series(axes, series)
+        elif len(data_args) == 3:
+            series3 = self.normalize_plot3_args(data_args, dict(properties))
+            artists = self.draw_plot3_series(axes, series3)
+        else:
+            raise ValueError("line requires x, y or x, y, z data arguments")
+        self.after_plot(axes)
+        return artists
+
     def semilogx(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """MATLAB-like semilogx plot with logarithmic x scale."""
 
