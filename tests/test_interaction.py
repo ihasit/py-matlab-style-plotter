@@ -315,9 +315,11 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter = FakePlotter(axes)
 
         self.assertFalse(plotter.hold())
+        self.assertFalse(plotter.ishold())
         self.assertEqual(plotter.next_plot, "replace")
 
         self.assertTrue(plotter.hold(" On "))
+        self.assertTrue(plotter.ishold())
         self.assertEqual(plotter.next_plot, "add")
         self.assertEqual(plotter.hold_changes, [True])
 
@@ -343,6 +345,19 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, " bad hold "):
             plotter.hold(" bad hold ")
 
+    def test_gca_returns_current_axes(self):
+        axes1 = FakeAxes("a1")
+        axes2 = FakeAxes("a2")
+        plotter = FakePlotter(axes1)
+
+        self.assertIs(plotter.gca(), axes1)
+
+        plotter.set_active_axes(axes2)
+        self.assertIs(plotter.gca(), axes2)
+
+        plotter.set_active_axes(None)
+        self.assertIsNone(plotter.gca())
+
     def test_hold_and_next_plot_are_scoped_to_active_axes(self):
         axes1 = FakeAxes("a1")
         axes2 = FakeAxes("a2")
@@ -363,6 +378,19 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertTrue(plotter.hold_enabled)
         self.assertEqual(plotter.next_plot, "add")
         self.assertEqual(plotter.hold_changes, [True, False, True])
+
+    def test_ishold_can_query_non_active_axes_without_switching(self):
+        axes1 = FakeAxes("a1")
+        axes2 = FakeAxes("a2")
+        plotter = FakePlotter(axes1)
+
+        plotter.set_active_axes(axes2)
+        plotter.hold("on")
+        plotter.set_active_axes(axes1)
+
+        self.assertFalse(plotter.ishold())
+        self.assertTrue(plotter.ishold(axes2))
+        self.assertIs(plotter.active_axes, axes1)
 
     def test_prepare_for_plot_uses_target_axes_next_plot(self):
         axes1 = FakeAxes("a1")

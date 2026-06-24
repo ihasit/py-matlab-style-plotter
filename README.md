@@ -5,7 +5,7 @@ MATLAB-like plotting and axes interaction helpers for Python UI applications.
 The first iteration focuses on axes UI behavior rather than drawing syntax:
 
 - active axes tracking
-- active axes queries with `current_axes()` and `is_active_axes(axes)`
+- active axes queries with `current_axes()`, MATLAB-style `gca()`, and `is_active_axes(axes)`
 - per-axes UI state for limit modes, aspect, box aspect, axis visibility, and y direction when switching active axes
 - exclusive interaction modes: `none`, `pan`, `zoom`, `data_cursor`, `select`, `brush`
 - MATLAB-style tool mode helpers: `pan`, `zoom`, `rotate3d`, `datacursormode`, `selectmode`, and `brush` accept `on`, `off`, `toggle`, or booleans
@@ -16,6 +16,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - mode state queries with `active_mode()` and `is_mode_active(mode)` for toolbar highlighting
 - MATLAB-like exploration tool state snapshots with `tool_state(mode)`, `pan_state()`, `zoom_state()`, and `rotate3d_state()` exposing `Enable`-style on/off state plus tool properties
 - MATLAB-style per-axes `hold on/off`
+- MATLAB-style hold-state queries with `ishold()` or `ishold(axes)`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
 - MATLAB-style `cla` / `cla reset` helpers for clearing axes children with optional axes property and view-history reset
 - MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling

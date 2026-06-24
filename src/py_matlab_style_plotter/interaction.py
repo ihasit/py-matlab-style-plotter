@@ -670,6 +670,9 @@ class MatlabLikeAxesBase:
     def current_axes(self) -> Any | None:
         return self.active_axes
 
+    def gca(self) -> Any | None:
+        return self.current_axes()
+
     def is_active_axes(self, axes: Any | None) -> bool:
         return self.active_axes is axes
 
@@ -2189,6 +2192,10 @@ class MatlabLikeAxesBase:
         if self.hold_enabled != old_hold:
             self.on_hold_changed(self.hold_enabled)
         return self.hold_enabled
+
+    def ishold(self, axes: Any | None = None) -> bool:
+        axes = axes if axes is not None else self.require_active_axes()
+        return self._current_axes_ui_state(axes).hold_enabled
 
     def set_next_plot(self, value: NextPlotMode) -> None:
         if value not in self._VALID_NEXT_PLOT:
