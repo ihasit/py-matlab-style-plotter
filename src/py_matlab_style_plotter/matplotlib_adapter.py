@@ -15,6 +15,7 @@ from .interaction import (
     BoxAspectMode,
     Camera3DState,
     CameraProjection,
+    BarSeries,
     ErrorBarSeries,
     MatlabLikeAxesBase,
     Plot3Series,
@@ -161,6 +162,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if isinstance(created, tuple):
                 artists.extend(created)
             else:
+                artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_bar_series(self, axes: Any, series: list[BarSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            kwargs.pop("marker", None)
+            kwargs.pop("linestyle", None)
+            created = axes.bar(item.x, item.y, **kwargs)
+            try:
+                artists.extend(created)
+            except TypeError:
                 artists.append(created)
         self._draw_idle(axes)
         return artists

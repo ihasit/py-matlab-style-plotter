@@ -324,6 +324,17 @@ class StemSeries:
 
 
 @dataclass(frozen=True)
+class BarSeries:
+    """One normalized MATLAB-like vertical ``bar`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -804,6 +815,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def bar(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like vertical bar series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_bar_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_bar_series_order(axes, series)
+        artists = self.draw_bar_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -948,6 +974,14 @@ class MatlabLikeAxesBase:
 
         return [
             StemSeries(series.x, series.y, series.style, series.properties, series.line_spec)
+            for series in self.normalize_plot_args(args, kwargs)
+        ]
+
+    def normalize_bar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[BarSeries]:
+        """Normalize common MATLAB vertical ``bar`` calling forms."""
+
+        return [
+            BarSeries(series.x, series.y, series.style, series.properties, series.line_spec)
             for series in self.normalize_plot_args(args, kwargs)
         ]
 
@@ -1419,6 +1453,14 @@ class MatlabLikeAxesBase:
         ordered = self._apply_plot_series_order(axes, proxy)
         return [
             StemSeries(item.x, item.y, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
+            for item, ordered_item in zip(series, ordered)
+        ]
+
+    def _apply_bar_series_order(self, axes: Any, series: list[BarSeries]) -> list[BarSeries]:
+        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
+        ordered = self._apply_plot_series_order(axes, proxy)
+        return [
+            BarSeries(item.x, item.y, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
             for item, ordered_item in zip(series, ordered)
         ]
 
@@ -4275,6 +4317,11 @@ class MatlabLikeAxesBase:
 
     def draw_stem_series(self, axes: Any, series: Sequence[StemSeries]) -> list[Any]:
         """Draw normalized stem series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_bar_series(self, axes: Any, series: Sequence[BarSeries]) -> list[Any]:
+        """Draw normalized vertical bar series for the concrete backend."""
 
         raise NotImplementedError
 

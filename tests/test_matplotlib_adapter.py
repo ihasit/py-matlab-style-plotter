@@ -242,6 +242,7 @@ class FakeAxes:
         self.errorbar_calls = []
         self.scatter_calls = []
         self.stem_calls = []
+        self.bar_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -316,6 +317,18 @@ class FakeAxes:
         self.lines.extend([markerline, stemlines, baseline])
         self.stem_calls.append((tuple(x), tuple(y), args, kwargs))
         return markerline, stemlines, baseline
+
+    def bar(self, x, height, **kwargs):
+        bars = []
+        for x_value, height_value in zip(x, height):
+            bar = FakePatch(self)
+            bar.x = x_value
+            bar.height = height_value
+            bar.kwargs = kwargs
+            bars.append(bar)
+        self.patches.extend(bars)
+        self.bar_calls.append((tuple(x), tuple(height), kwargs))
+        return bars
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -736,6 +749,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                     (10.0, 20.0),
                     (),
                     {"color": "r", "linestyle": "--", "marker": "o", "label": "stem"},
+                )
+            ],
+        )
+
+    def test_bar_draws_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.bar([1, 2], [10, 20], "r--o", "DisplayName", "bars")
+
+        self.assertEqual(len(artists), 2)
+        self.assertEqual(
+            axes.bar_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    {"color": "r", "label": "bars"},
                 )
             ],
         )
