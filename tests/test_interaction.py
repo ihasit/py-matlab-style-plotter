@@ -844,6 +844,61 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.prepare_for_plot()
         self.assertEqual(axes.clear_calls, [True, False])
 
+    def test_cla_clears_children_without_resetting_axes_state(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+        plotter.grid("on")
+        plotter.box("off")
+        plotter.hold("on")
+        plotter.push_current_view()
+        history_count = len(plotter.view_stack)
+
+        self.assertIsNone(plotter.cla())
+
+        self.assertEqual(axes.clear_calls, [False])
+        self.assertTrue(axes.grid_visible)
+        self.assertFalse(axes.box_visible)
+        self.assertTrue(plotter.hold_enabled)
+        self.assertEqual(len(plotter.view_stack), history_count)
+
+    def test_cla_reset_clears_history_and_resets_axes_state(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+        plotter.grid("on")
+        plotter.box("off")
+        plotter.legend("on")
+        plotter.hold("on")
+        plotter.ydir("reverse")
+        plotter.push_current_view()
+
+        self.assertIsNone(plotter.cla(" reset "))
+
+        self.assertEqual(axes.clear_calls, [True])
+        self.assertFalse(axes.grid_visible)
+        self.assertTrue(axes.box_visible)
+        self.assertFalse(axes.legend_visible)
+        self.assertEqual(axes.y_direction, "normal")
+        self.assertFalse(plotter.hold_enabled)
+        self.assertEqual(plotter.next_plot, "replace")
+        self.assertEqual(plotter.view_stack, [])
+        self.assertEqual(plotter.view_index, -1)
+
+    def test_cla_accepts_positional_axes_and_rejects_bad_options(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.cla(axes2)
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [False])
+
+        with self.assertRaisesRegex(ValueError, "Unsupported cla option"):
+            plotter.cla("bad")
+        with self.assertRaisesRegex(ValueError, "at most one"):
+            plotter.cla("reset", "extra")
+
     def test_plot_normalizes_matlab_like_series_and_runs_lifecycle(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)

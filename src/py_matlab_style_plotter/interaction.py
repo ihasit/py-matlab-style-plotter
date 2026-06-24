@@ -788,6 +788,34 @@ class MatlabLikeAxesBase:
 
         return self._set_tool_mode(InteractionMode.BRUSH, value)
 
+    def cla(self, *args: Any, axes: Any | None = None) -> None:
+        """Clear axes children, with ``cla("reset")`` resetting axes state."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        if len(args) > 1:
+            raise ValueError("cla accepts at most one option")
+        reset = False
+        if args:
+            option = args[0]
+            if not isinstance(option, str) or option.strip().lower() != "reset":
+                raise ValueError(f"Unsupported cla option: {option!r}")
+            reset = True
+        self.set_active_axes(axes)
+        self.clear_children(axes, reset_properties=reset)
+        if reset:
+            self.clear_view_history(axes)
+            self.reset_axes_properties(axes)
+            self._axes_ui_state[axes] = AxesUIState(
+                color_order=self.DEFAULT_COLOR_ORDER,
+                line_style_order=self.DEFAULT_LINE_STYLE_ORDER,
+            )
+            if axes is self.active_axes:
+                self._load_axes_ui_state(axes)
+        return None
+
     def plot(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 2D line series on an axes.
 

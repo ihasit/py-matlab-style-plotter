@@ -17,6 +17,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-like exploration tool state snapshots with `tool_state(mode)`, `pan_state()`, `zoom_state()`, and `rotate3d_state()` exposing `Enable`-style on/off state plus tool properties
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
+- MATLAB-style `cla` / `cla reset` helpers for clearing axes children with optional axes property and view-history reset
 - MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
 - MATLAB-style `line(...)` primitive helper for adding 2D/3D line objects without `NextPlot` clearing or default series-order assignment
 - MATLAB-style `plot3(...)` command template with repeated `x, y, z, LineSpec` groups and the same backend-neutral series-order and `NextPlot` lifecycle handling as `plot(...)`
