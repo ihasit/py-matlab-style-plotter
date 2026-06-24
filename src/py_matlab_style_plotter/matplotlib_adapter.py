@@ -956,6 +956,32 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return True
 
+    def colorbar_is_enabled(self, axes: Any) -> bool:
+        return self._get_colorbar(axes) is not None
+
+    def set_colorbar_visible(self, axes: Any, visible: bool) -> bool:
+        colorbar = self._get_colorbar(axes)
+        if colorbar is not None:
+            if visible:
+                return True
+            colorbar.remove()
+            setattr(axes, "_matlab_like_colorbar", None)
+            self._draw_idle(axes)
+            return False
+        if not visible:
+            return False
+        mappable = self._latest_mappable(axes)
+        if mappable is None:
+            return False
+        figure = getattr(axes, "figure", None)
+        create = getattr(figure, "colorbar", None)
+        if create is None:
+            return False
+        colorbar = create(mappable, ax=axes)
+        setattr(axes, "_matlab_like_colorbar", colorbar)
+        self._draw_idle(axes)
+        return True
+
     def toggle_link_x_axes(self, axes: Any | None = None) -> bool:
         linked = self.toggle_link_axes("x", axes=axes)
         self.x_axes_linked = linked
@@ -1243,6 +1269,15 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
     def _get_legend(self, axes: Any) -> Any | None:
         return getattr(axes, "get_legend", lambda: None)()
+
+    def _get_colorbar(self, axes: Any) -> Any | None:
+        colorbar = getattr(axes, "_matlab_like_colorbar", None)
+        removed = getattr(colorbar, "removed", False)
+        return None if removed else colorbar
+
+    def _latest_mappable(self, axes: Any) -> Any | None:
+        candidates = [*getattr(axes, "images", []), *getattr(axes, "collections", [])]
+        return candidates[-1] if candidates else None
 
     def _has_legendable_artists(self, axes: Any) -> bool:
         for line in getattr(axes, "lines", []):

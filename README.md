@@ -12,6 +12,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `grid on/off/toggle/minor` helper for axes major/minor grid visibility
 - MATLAB-style `box on/off/toggle` helper for axes frame visibility
 - MATLAB-style `legend on/off/toggle` helper for axes legends
+- MATLAB-style `colorbar on/off/toggle` helper for axes colorbars
 - mode state queries with `active_mode()` and `is_mode_active(mode)` for toolbar highlighting
 - MATLAB-like exploration tool state snapshots with `tool_state(mode)`, `pan_state()`, `zoom_state()`, and `rotate3d_state()` exposing `Enable`-style on/off state plus tool properties
 - MATLAB-style per-axes `hold on/off`
@@ -245,6 +246,11 @@ axis-specific overrides. `xminortick(...)`, `yminortick(...)`, and
 `zminortick(...)` expose the independent MATLAB minor tick visibility
 properties. Major and minor per-axis grid visibility plus minor tick visibility
 are restored through view history.
+
+`colorbar("on"|"off"|"toggle")` mirrors MATLAB's colorbar visibility helper for
+the target axes. Backends decide whether a mappable image or collection is
+available; the Matplotlib adapter attaches the colorbar to the latest image or
+collection and removes the tracked colorbar on `off`.
 
 `xticks(...)`, `yticks(...)`, and `zticks(...)` mirror MATLAB's tick location
 helpers. No argument queries current tick locations, a finite increasing vector

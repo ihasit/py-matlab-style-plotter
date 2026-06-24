@@ -75,6 +75,7 @@ class FakeAxes:
         self.z_minor_tick_visible = False
         self.box_visible = True
         self.legend_visible = False
+        self.colorbar_visible = False
         self.clear_calls = []
         self.autoscale_calls = []
         self.autoscale_clim_calls = 0
@@ -277,6 +278,13 @@ class FakePlotter(MatlabLikeAxesBase):
     def set_legend_visible(self, axes, visible):
         axes.legend_visible = visible
         return axes.legend_visible
+
+    def colorbar_is_enabled(self, axes):
+        return axes.colorbar_visible
+
+    def set_colorbar_visible(self, axes, visible):
+        axes.colorbar_visible = visible
+        return axes.colorbar_visible
 
     def begin_zoom_box(self, axes, x, y):
         self.zoom_box_events.append(("begin", axes, x, y))
@@ -639,6 +647,26 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Unsupported legend value"):
             plotter.legend("bad")
+
+    def test_colorbar_accepts_on_off_toggle_bool_and_returns_state(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        self.assertTrue(plotter.colorbar("on"))
+        self.assertTrue(axes.colorbar_visible)
+        self.assertFalse(plotter.colorbar("toggle"))
+        self.assertFalse(axes.colorbar_visible)
+        self.assertTrue(plotter.colorbar())
+        self.assertTrue(axes.colorbar_visible)
+        self.assertFalse(plotter.colorbar(False))
+        self.assertFalse(axes.colorbar_visible)
+
+    def test_colorbar_rejects_bad_values(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported colorbar value"):
+            plotter.colorbar("bad")
 
     def test_set_mode_is_noop_when_mode_is_unchanged(self):
         axes = FakeAxes()

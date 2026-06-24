@@ -41,6 +41,16 @@ class FakeLegend:
         self.axes._legend = None
 
 
+class FakeColorbar:
+    def __init__(self, mappable, axes):
+        self.mappable = mappable
+        self.axes = axes
+        self.removed = False
+
+    def remove(self):
+        self.removed = True
+
+
 class FakeMappable:
     def __init__(self):
         self.autoscale_count = 0
@@ -137,6 +147,12 @@ class FakeFigure:
     def __init__(self):
         self.canvas = FakeCanvas()
         self.axes = []
+        self.colorbar_calls = []
+
+    def colorbar(self, mappable, ax=None):
+        colorbar = FakeColorbar(mappable, ax)
+        self.colorbar_calls.append((mappable, ax, colorbar))
+        return colorbar
 
 
 class FakeLine:
@@ -1642,6 +1658,30 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertFalse(plotter.legend("off"))
         self.assertTrue(legend.removed)
         self.assertIsNone(axes.get_legend())
+
+    def test_colorbar_helper_creates_and_removes_matplotlib_colorbar(self):
+        axes = FakeAxes()
+        image = FakeMappable()
+        axes.images = [image]
+        plotter = MatplotlibAxesPlotter(axes)
+
+        self.assertTrue(plotter.colorbar("on"))
+        colorbar = getattr(axes, "_matlab_like_colorbar")
+        self.assertIsNotNone(colorbar)
+        self.assertEqual(axes.figure.colorbar_calls, [(image, axes, colorbar)])
+        self.assertTrue(plotter.colorbar("on"))
+        self.assertFalse(colorbar.removed)
+
+        self.assertFalse(plotter.colorbar("off"))
+        self.assertTrue(colorbar.removed)
+        self.assertIsNone(getattr(axes, "_matlab_like_colorbar"))
+
+    def test_colorbar_helper_ignores_axes_without_mappables(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        self.assertFalse(plotter.colorbar("on"))
+        self.assertEqual(axes.figure.colorbar_calls, [])
 
     def test_toggle_legend_ignores_axes_without_public_labels(self):
         axes = FakeAxes()

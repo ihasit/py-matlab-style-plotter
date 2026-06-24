@@ -2088,6 +2088,29 @@ class MatlabLikeAxesBase:
             return actual
         return current
 
+    def colorbar(self, value: bool | str | None = None, axes: Any | None = None) -> bool:
+        """MATLAB-like colorbar control for the target axes."""
+
+        axes = axes if axes is not None else self.require_active_axes()
+        current = self.colorbar_is_enabled(axes)
+        if value is None:
+            visible = True
+        elif isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized == "on":
+                visible = True
+            elif normalized == "off":
+                visible = False
+            elif normalized == "toggle":
+                visible = not current
+            else:
+                raise ValueError(f"Unsupported colorbar value: {value!r}")
+        else:
+            visible = bool(value)
+        if visible != current:
+            return self.set_colorbar_visible(axes, visible)
+        return current
+
     def hold(self, value: bool | str | None = None) -> bool:
         """Get or set MATLAB-style hold state.
 
@@ -4989,5 +5012,15 @@ class MatlabLikeAxesBase:
 
     def set_legend_visible(self, axes: Any, visible: bool) -> bool:
         """Set legend visibility for the concrete backend."""
+
+        return False
+
+    def colorbar_is_enabled(self, axes: Any) -> bool:
+        """Return whether a colorbar is visible for the concrete backend."""
+
+        return False
+
+    def set_colorbar_visible(self, axes: Any, visible: bool) -> bool:
+        """Set colorbar visibility for the concrete backend."""
 
         return False
