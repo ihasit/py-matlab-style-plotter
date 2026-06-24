@@ -263,12 +263,20 @@ class FakeAxes:
 
     def plot(self, x, y, *args, **kwargs):
         label = str(kwargs.get("label", "series"))
-        line = FakeLine(tuple(x), tuple(y), label=label)
-        line.style_args = args
+        z = None
+        style_args = args
+        if self.is_3d and args and not isinstance(args[0], str):
+            z = tuple(args[0])
+            style_args = args[1:]
+        line = FakeLine(tuple(x), tuple(y), zdata=z, label=label)
+        line.style_args = style_args
         line.kwargs = kwargs
         line.axes = self
         self.lines.append(line)
-        self.plot_calls.append((tuple(x), tuple(y), args, kwargs))
+        if z is None:
+            self.plot_calls.append((tuple(x), tuple(y), style_args, kwargs))
+        else:
+            self.plot_calls.append((tuple(x), tuple(y), z, style_args, kwargs))
         return [line]
 
     def relim(self):
@@ -581,6 +589,26 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(axes._xscale, "log")
         self.assertEqual(axes._yscale, "log")
         self.assertEqual(len(axes.plot_calls), 3)
+
+    def test_plot3_draws_matlab_like_series_through_matplotlib_axes(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.plot3([1, 2], [3, 4], [5, 6], "r--", "DisplayName", "path")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.plot_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (3.0, 4.0),
+                    (5.0, 6.0),
+                    (),
+                    {"color": "r", "linestyle": "--", "label": "path"},
+                )
+            ],
+        )
 
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()

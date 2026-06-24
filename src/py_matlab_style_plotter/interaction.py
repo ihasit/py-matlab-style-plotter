@@ -276,6 +276,18 @@ class PlotSeries:
 
 
 @dataclass(frozen=True)
+class Plot3Series:
+    """One normalized MATLAB-like ``plot3`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    z: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -680,6 +692,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def plot3(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like 3D line series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_plot3_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_plot3_series_order(axes, series)
+        artists = self.draw_plot3_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def semilogx(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """MATLAB-like semilogx plot with logarithmic x scale."""
 
@@ -773,6 +800,35 @@ class MatlabLikeAxesBase:
         if axes is self.active_axes:
             self.next_series_index = value
         return None
+
+    def normalize_plot3_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[Plot3Series]:
+        """Normalize common MATLAB ``plot3`` calling forms into 3D line series."""
+
+        if not args:
+            raise ValueError("plot3 requires x, y, and z data arguments")
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 3:
+            raise ValueError("plot3 requires x, y, and z data arguments")
+        series: list[Plot3Series] = []
+        index = 0
+        while index < len(data_args):
+            if index + 2 >= len(data_args):
+                raise ValueError("plot3 data arguments must be x, y, z groups")
+            first = data_args[index]
+            second = data_args[index + 1]
+            third = data_args[index + 2]
+            if isinstance(first, str) or isinstance(second, str) or isinstance(third, str):
+                raise ValueError("plot3 data arguments must be numeric x, y, z groups")
+            x_data = self._plot_data(first, f"argument {index + 1}")
+            y_data = self._plot_data(second, f"argument {index + 2}")
+            z_data = self._plot_data(third, f"argument {index + 3}")
+            index += 3
+            style = None
+            if index < len(data_args) and isinstance(data_args[index], str):
+                style = data_args[index]
+                index += 1
+            series.extend(self._plot3_series_from_data(x_data, y_data, z_data, style, properties))
+        return series
 
     def normalize_plot_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PlotSeries]:
         """Normalize common MATLAB ``plot`` calling forms into line series."""
@@ -985,6 +1041,35 @@ class MatlabLikeAxesBase:
         line_spec = self._parse_line_spec(style)
         return [PlotSeries(x_values, y_data.column(column), style, properties, line_spec) for column in range(y_data.column_count)]
 
+    def _plot3_series_from_data(
+        self,
+        x_data: _PlotData,
+        y_data: _PlotData,
+        z_data: _PlotData,
+        style: str | None,
+        properties: tuple[tuple[str, Any], ...],
+    ) -> list[Plot3Series]:
+        xy_series = self._plot_series_from_data(x_data, y_data, style, properties)
+        z_columns = self._plot3_z_columns(z_data, len(xy_series), len(xy_series[0].x) if xy_series else 0)
+        if len(z_columns) != len(xy_series):
+            raise ValueError("plot3 x, y, and z data must expand to the same number of series")
+        return [
+            Plot3Series(series.x, series.y, z_values, series.style, series.properties, series.line_spec)
+            for series, z_values in zip(xy_series, z_columns)
+        ]
+
+    def _plot3_z_columns(self, z_data: _PlotData, series_count: int, point_count: int) -> list[tuple[float, ...]]:
+        if z_data.is_vector:
+            z_values = z_data.as_vector()
+            if len(z_values) != point_count:
+                raise ValueError("plot3 z vector length must match x and y data length")
+            return [z_values for _index in range(series_count)]
+        if z_data.row_count != point_count:
+            raise ValueError("plot3 z row count must match x and y data length")
+        if z_data.column_count != series_count:
+            raise ValueError("plot3 z matrix columns must match expanded x and y series")
+        return [z_data.column(column) for column in range(z_data.column_count)]
+
     def _apply_plot_series_order(self, axes: Any, series: list[PlotSeries]) -> list[PlotSeries]:
         state = self._current_axes_ui_state(axes)
         color_order = state.color_order or self.DEFAULT_COLOR_ORDER
@@ -1028,6 +1113,14 @@ class MatlabLikeAxesBase:
 
     def _series_has_property(self, series: PlotSeries, property_name: str) -> bool:
         return any(name == property_name for name, _value in (*series.line_spec, *series.properties))
+
+    def _apply_plot3_series_order(self, axes: Any, series: list[Plot3Series]) -> list[Plot3Series]:
+        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
+        ordered = self._apply_plot_series_order(axes, proxy)
+        return [
+            Plot3Series(item.x, item.y, item.z, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
+            for item, ordered_item in zip(series, ordered)
+        ]
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
         if not style:
@@ -3862,6 +3955,11 @@ class MatlabLikeAxesBase:
 
     def draw_plot_series(self, axes: Any, series: Sequence[PlotSeries]) -> list[Any]:
         """Draw normalized line series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_plot3_series(self, axes: Any, series: Sequence[Plot3Series]) -> list[Any]:
+        """Draw normalized 3D line series for the concrete backend."""
 
         raise NotImplementedError
 

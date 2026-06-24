@@ -16,6 +16,7 @@ from .interaction import (
     Camera3DState,
     CameraProjection,
     MatlabLikeAxesBase,
+    Plot3Series,
     PlotSeries,
     TickDirection,
     XAxisLocation,
@@ -103,6 +104,18 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 created = axes.plot(item.x, item.y, **kwargs)
             else:
                 created = axes.plot(item.x, item.y, item.style, **kwargs)
+            artists.extend(created if isinstance(created, list) else list(created))
+        self._draw_idle(axes)
+        return artists
+
+    def draw_plot3_series(self, axes: Any, series: list[Plot3Series]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            if item.style is None or item.line_spec:
+                created = axes.plot(item.x, item.y, item.z, **kwargs)
+            else:
+                created = axes.plot(item.x, item.y, item.z, item.style, **kwargs)
             artists.extend(created if isinstance(created, list) else list(created))
         self._draw_idle(axes)
         return artists

@@ -9,6 +9,7 @@ from py_matlab_style_plotter import (
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
+    Plot3Series,
     PlotSeries,
     PointerEvent,
     ToolState,
@@ -82,6 +83,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.brush_box_events = []
         self.brushes = []
         self.drawn_series = []
+        self.drawn_plot3_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -127,6 +129,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_plot_series(self, axes, series):
         self.drawn_series.append((axes, tuple(series)))
         return [f"line-{len(self.drawn_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_plot3_series(self, axes, series):
+        self.drawn_plot3_series.append((axes, tuple(series)))
+        return [f"line3-{len(self.drawn_plot3_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -923,6 +929,58 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(axes2.clear_calls, [True])
         self.assertEqual(axes2.x_scale, "log")
         self.assertEqual(axes2.y_scale, "log")
+
+    def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.plot3([1, 2], [3, 4], [5, 6], "r--", "DisplayName", "path")
+
+        self.assertEqual(artists, ["line3-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        self.assertEqual(
+            plotter.drawn_plot3_series[0][1],
+            (
+                Plot3Series(
+                    (1.0, 2.0),
+                    (3.0, 4.0),
+                    (5.0, 6.0),
+                    "r--",
+                    (("label", "path"),),
+                    (("color", "r"), ("linestyle", "--")),
+                ),
+            ),
+        )
+
+    def test_plot3_matrix_columns_expand_xyz_series(self):
+        plotter = FakePlotter(FakeAxes(is_3d=True))
+
+        series = plotter.normalize_plot3_args((
+            [[1, 10], [2, 20]],
+            [[3, 30], [4, 40]],
+            [[5, 50], [6, 60]],
+            "o",
+        ))
+
+        self.assertEqual(
+            series,
+            [
+                Plot3Series((1.0, 2.0), (3.0, 4.0), (5.0, 6.0), "o", (), (("marker", "o"),)),
+                Plot3Series((10.0, 20.0), (30.0, 40.0), (50.0, 60.0), "o", (), (("marker", "o"),)),
+            ],
+        )
+
+    def test_plot3_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1", is_3d=True)
+        axes2 = FakeAxes("axes2", is_3d=True)
+        plotter = FakePlotter(axes1)
+
+        plotter.plot3(axes2, [1, 2], [3, 4], [5, 6])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        self.assertEqual(plotter.drawn_plot3_series[0][0], axes2)
 
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())

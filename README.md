@@ -17,6 +17,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
 - MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
+- MATLAB-style `plot3(...)` command template with repeated `x, y, z, LineSpec` groups and the same backend-neutral series-order and `NextPlot` lifecycle handling as `plot(...)`
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -84,6 +85,10 @@ style order resets `NextSeriesIndex` to MATLAB-like cycle-start behavior.
 `semilogx(...)`, `semilogy(...)`, and `loglog(...)` share the same parsing,
 series-order, `NextPlot`, and view-history behavior as `plot(...)`, then apply
 the corresponding x/y logarithmic axis scale.
+`plot3(...)` normalizes repeated `x, y, z, LineSpec` groups into `Plot3Series`
+records, including matrix-column expansion and the same LineSpec,
+Name/Value, ColorOrder, LineStyleOrder, hold, and `NextPlot` behavior as
+2D `plot(...)`.
 
 ## Matplotlib Demo
 
