@@ -512,6 +512,21 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(axes.plot_calls[0][0], (1.0, 2.0))
         self.assertEqual(axes.plot_calls[0][1], (7.0, 8.0))
 
+    def test_plot_matrix_columns_create_multiple_matplotlib_lines(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.plot([10, 20, 30], [[1, 10], [2, 20], [3, 30]], "x")
+
+        self.assertEqual(len(artists), 2)
+        self.assertEqual(
+            axes.plot_calls,
+            [
+                ((10.0, 20.0, 30.0), (1.0, 2.0, 3.0), ("x",), {}),
+                ((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), ("x",), {}),
+            ],
+        )
+
     def test_prepare_replace_clears_target_axes_interaction_state(self):
         axes1 = FakeAxes()
         axes2 = FakeAxes()

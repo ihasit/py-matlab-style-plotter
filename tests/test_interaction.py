@@ -738,6 +738,45 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(plotter.drawn_series[0][1][0].x, (1.0, 2.0, 3.0))
         self.assertEqual(plotter.drawn_series[0][1][0].y, (1.0, 2.0, 3.0))
 
+    def test_plot_y_matrix_expands_columns(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([[1, 10], [2, 20], [3, 30]],))
+
+        self.assertEqual(
+            series,
+            [
+                PlotSeries((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)),
+                PlotSeries((1.0, 2.0, 3.0), (10.0, 20.0, 30.0)),
+            ],
+        )
+
+    def test_plot_x_vector_y_matrix_expands_columns(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([10, 20, 30], [[1, 10], [2, 20], [3, 30]]), {"color": "blue"})
+
+        self.assertEqual(
+            series,
+            [
+                PlotSeries((10.0, 20.0, 30.0), (1.0, 2.0, 3.0), None, (("color", "blue"),)),
+                PlotSeries((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), None, (("color", "blue"),)),
+            ],
+        )
+
+    def test_plot_x_y_matrices_pair_columns(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_plot_args(([[1, 10], [2, 20]], [[3, 30], [4, 40]], "o"))
+
+        self.assertEqual(
+            series,
+            [
+                PlotSeries((1.0, 2.0), (3.0, 4.0), "o"),
+                PlotSeries((10.0, 20.0), (30.0, 40.0), "o"),
+            ],
+        )
+
     def test_plot_rejects_mismatched_x_y_lengths(self):
         plotter = FakePlotter(FakeAxes())
 

@@ -269,6 +269,35 @@ class PlotSeries:
 
 
 @dataclass(frozen=True)
+class _PlotData:
+    rows: tuple[tuple[float, ...], ...]
+
+    @property
+    def row_count(self) -> int:
+        return len(self.rows)
+
+    @property
+    def column_count(self) -> int:
+        return len(self.rows[0]) if self.rows else 0
+
+    @property
+    def is_vector(self) -> bool:
+        return self.row_count <= 1 or self.column_count <= 1
+
+    def as_vector(self) -> tuple[float, ...]:
+        if self.row_count == 0:
+            return ()
+        if self.row_count == 1:
+            return self.rows[0]
+        if self.column_count == 1:
+            return tuple(row[0] for row in self.rows)
+        raise ValueError("data must be a vector")
+
+    def column(self, index: int) -> tuple[float, ...]:
+        return tuple(row[index] for row in self.rows)
+
+
+@dataclass(frozen=True)
 class PointerEvent:
     """Backend-neutral pointer event.
 
@@ -620,20 +649,18 @@ class MatlabLikeAxesBase:
             if isinstance(first, str):
                 raise ValueError(f"Unexpected line style without data at argument {index + 1}")
             if index + 1 < len(args) and not isinstance(args[index + 1], str):
-                x_values = self._numeric_vector(first, f"argument {index + 1}")
-                y_values = self._numeric_vector(args[index + 1], f"argument {index + 2}")
+                x_data = self._plot_data(first, f"argument {index + 1}")
+                y_data = self._plot_data(args[index + 1], f"argument {index + 2}")
                 index += 2
             else:
-                y_values = self._numeric_vector(first, f"argument {index + 1}")
-                x_values = tuple(float(item) for item in range(1, len(y_values) + 1))
+                x_data = None
+                y_data = self._plot_data(first, f"argument {index + 1}")
                 index += 1
-            if len(x_values) != len(y_values):
-                raise ValueError("x and y data must have the same length")
             style = None
             if index < len(args) and isinstance(args[index], str):
                 style = args[index]
                 index += 1
-            series.append(PlotSeries(x_values, y_values, style, properties))
+            series.extend(self._plot_series_from_data(x_data, y_data, style, properties))
         return series
 
     def title(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
@@ -696,6 +723,80 @@ class MatlabLikeAxesBase:
         if not all(isfinite(item) for item in vector):
             raise ValueError(f"{label} must contain only finite numeric values")
         return vector
+
+    def _plot_data(self, value: Any, label: str) -> _PlotData:
+        if isinstance(value, (str, bytes)):
+            raise ValueError(f"{label} must be numeric plot data")
+        if self._is_plot_row(value):
+            rows = tuple(self._numeric_vector(row, label) for row in value)
+            if not rows:
+                return _PlotData(())
+            width = len(rows[0])
+            if any(len(row) != width for row in rows):
+                raise ValueError(f"{label} matrix rows must have the same length")
+            return _PlotData(rows)
+        return _PlotData((self._numeric_vector(value, label),))
+
+    def _is_plot_row(self, value: Any) -> bool:
+        try:
+            iterator = iter(value)
+        except TypeError:
+            return False
+        for item in iterator:
+            return not isinstance(item, (str, bytes)) and self._is_iterable(item)
+        return False
+
+    def _is_iterable(self, value: Any) -> bool:
+        try:
+            iter(value)
+        except TypeError:
+            return False
+        return True
+
+    def _plot_series_from_data(
+        self,
+        x_data: _PlotData | None,
+        y_data: _PlotData,
+        style: str | None,
+        properties: tuple[tuple[str, Any], ...],
+    ) -> list[PlotSeries]:
+        if x_data is None:
+            return self._plot_y_only_series(y_data, style, properties)
+        if x_data.is_vector and not y_data.is_vector:
+            x_values = x_data.as_vector()
+            if len(x_values) != y_data.row_count:
+                raise ValueError("x vector length must match y row count")
+            return [PlotSeries(x_values, y_data.column(column), style, properties) for column in range(y_data.column_count)]
+        if not x_data.is_vector and y_data.is_vector:
+            y_values = y_data.as_vector()
+            if x_data.row_count != len(y_values):
+                raise ValueError("x row count must match y vector length")
+            return [PlotSeries(x_data.column(column), y_values, style, properties) for column in range(x_data.column_count)]
+        if not x_data.is_vector and not y_data.is_vector:
+            if x_data.row_count != y_data.row_count or x_data.column_count != y_data.column_count:
+                raise ValueError("x and y matrices must have the same shape")
+            return [
+                PlotSeries(x_data.column(column), y_data.column(column), style, properties)
+                for column in range(y_data.column_count)
+            ]
+        x_values = x_data.as_vector()
+        y_values = y_data.as_vector()
+        if len(x_values) != len(y_values):
+            raise ValueError("x and y data must have the same length")
+        return [PlotSeries(x_values, y_values, style, properties)]
+
+    def _plot_y_only_series(
+        self,
+        y_data: _PlotData,
+        style: str | None,
+        properties: tuple[tuple[str, Any], ...],
+    ) -> list[PlotSeries]:
+        if y_data.is_vector:
+            y_values = y_data.as_vector()
+            x_values = tuple(float(item) for item in range(1, len(y_values) + 1))
+            return [PlotSeries(x_values, y_values, style, properties)]
+        x_values = tuple(float(item) for item in range(1, y_data.row_count + 1))
+        return [PlotSeries(x_values, y_data.column(column), style, properties) for column in range(y_data.column_count)]
 
     def _set_tool_mode(self, mode: InteractionMode, value: bool | str | None) -> InteractionMode:
         if value is None:

@@ -16,7 +16,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-like exploration tool state snapshots with `tool_state(mode)`, `pan_state()`, `zoom_state()`, and `rotate3d_state()` exposing `Enable`-style on/off state plus tool properties
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
-- MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, repeated `x, y, style` groups, keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
+- MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, matrix columns, repeated `x, y, style` groups, keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
 - Matplotlib `replace` / `replacechildren` plot lifecycles clear stale data tips, selections, coordinate readouts, and temporary zoom/brush boxes for the target axes
 - hold state notifications with `on_hold_changed(enabled)`
 - explicit `auto` / `manual` x/y limit modes
@@ -59,10 +59,12 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 The core classes are pure Python so the behavior can be tested without a GUI backend.
 
 The backend-neutral `MatlabLikeAxesBase.plot(...)` method normalizes common
-MATLAB line-plot calling forms into `PlotSeries` records, runs
-`prepare_for_plot(...)`, delegates actual artist creation to
-`draw_plot_series(...)`, then calls `after_plot(...)`. Backends can implement
-one hook and inherit MATLAB-like `hold`/`NextPlot` behavior consistently.
+MATLAB line-plot calling forms into `PlotSeries` records, including `plot(Y)`
+matrix-column expansion, `plot(x, Y)` vector-to-matrix expansion, and
+`plot(X, Y)` paired matrix columns. It runs `prepare_for_plot(...)`, delegates
+actual artist creation to `draw_plot_series(...)`, then calls
+`after_plot(...)`. Backends can implement one hook and inherit MATLAB-like
+`hold`/`NextPlot` behavior consistently.
 
 ## Matplotlib Demo
 
