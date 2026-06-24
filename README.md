@@ -28,6 +28,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `fill(...)` command template for filled polygons with explicit color groups, default `ColorOrder`, and shared lifecycle behavior
 - MATLAB-style `histogram(...)` command template for data histograms with optional bin count or explicit bin edges and shared lifecycle behavior
 - MATLAB-style `xline(...)` and `yline(...)` constant reference-line helpers with LineSpec, labels, positional axes, and primitive-style lifecycle behavior
+- MATLAB-style `text(...)` annotation helper for 2D/3D axes text with positional axes, Name/Value properties, and primitive-style lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -142,6 +143,11 @@ LineSpec strings, labels, Name/Value properties, and positional axes handles
 into backend-neutral `ConstantLineSeries` records. Like `line(...)`, they add
 reference-line primitives without `NextPlot` clearing or default series-order
 assignment before delegating to `draw_constant_line_series(...)`.
+`text(...)` normalizes `text(x, y, str)` and `text(x, y, z, str)` forms into
+backend-neutral `TextSeries` records. It supports multi-line text sequences,
+Name/Value properties, and positional axes handles, and like `line(...)` adds
+annotations without `NextPlot` clearing or default series-order assignment
+before delegating to `draw_text_series(...)`.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

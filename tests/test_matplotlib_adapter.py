@@ -16,6 +16,7 @@ class FakeAnnotation:
         self.label = label
         self.xy = xy
         self.removed = False
+        self.kwargs = {}
 
     def remove(self):
         self.removed = True
@@ -248,6 +249,7 @@ class FakeAxes:
         self.hist_calls = []
         self.axvline_calls = []
         self.axhline_calls = []
+        self.text_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -377,6 +379,19 @@ class FakeAxes:
         self.lines.append(line)
         self.axhline_calls.append((y, kwargs))
         return line
+
+    def text(self, *args, **kwargs):
+        if len(args) == 3:
+            x, y, value = args
+            annotation = FakeAnnotation(value, (x, y))
+        elif len(args) == 4:
+            x, y, z, value = args
+            annotation = FakeAnnotation(value, (x, y, z))
+        else:
+            raise TypeError("text expects 3 or 4 positional arguments")
+        annotation.kwargs = kwargs
+        self.text_calls.append((args, kwargs))
+        return annotation
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -896,6 +911,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             ],
         )
         self.assertEqual(axes.axhline_calls, [(3.0, {"color": "k", "linestyle": ":", "label": "threshold"})])
+
+    def test_text_draws_annotation_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.text(1, 2, ["hello", "world"], "Color", "red")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(axes.text_calls, [((1.0, 2.0, "hello\nworld"), {"color": "red"})])
+
+    def test_text_draws_3d_annotation_through_matplotlib_axes(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.text(1, 2, 3, "label")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(axes.text_calls, [((1.0, 2.0, 3.0, "label"), {})])
 
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()

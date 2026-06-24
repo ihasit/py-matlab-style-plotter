@@ -380,6 +380,17 @@ class ConstantLineSeries:
 
 
 @dataclass(frozen=True)
+class TextSeries:
+    """One normalized MATLAB-like axes ``text`` annotation."""
+
+    x: float
+    y: float
+    z: float | None
+    text: tuple[str, ...]
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -968,6 +979,19 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def text(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Add MATLAB-like text annotations to an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_text_args(args, kwargs)
+        artists = self.draw_text_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def semilogx(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """MATLAB-like semilogx plot with logarithmic x scale."""
 
@@ -1168,6 +1192,24 @@ class MatlabLikeAxesBase:
         line_spec = self._parse_line_spec(style)
         return [ConstantLineSeries(orientation, value, label, style, properties, line_spec) for value in positions]
 
+    def normalize_text_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[TextSeries]:
+        """Normalize common MATLAB axes ``text`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) == 3:
+            x_value = self._scalar_number(data_args[0], "text x")
+            y_value = self._scalar_number(data_args[1], "text y")
+            z_value = None
+            text_value = data_args[2]
+        elif len(data_args) == 4:
+            x_value = self._scalar_number(data_args[0], "text x")
+            y_value = self._scalar_number(data_args[1], "text y")
+            z_value = self._scalar_number(data_args[2], "text z")
+            text_value = data_args[3]
+        else:
+            raise ValueError("text requires x, y, string or x, y, z, string")
+        return [TextSeries(x_value, y_value, z_value, self._normalize_text_value(text_value), properties)]
+
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
         """Normalize common MATLAB vertical ``errorbar`` calling forms."""
 
@@ -1364,6 +1406,17 @@ class MatlabLikeAxesBase:
         if not all(isfinite(item) for item in vector):
             raise ValueError(f"{label} must contain only finite numeric values")
         return vector
+
+    def _scalar_number(self, value: Any, label: str) -> float:
+        if isinstance(value, (str, bytes)):
+            raise ValueError(f"{label} must be a finite numeric scalar")
+        try:
+            scalar = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label} must be a finite numeric scalar") from exc
+        if not isfinite(scalar):
+            raise ValueError(f"{label} must be a finite numeric scalar")
+        return scalar
 
     def _plot_data(self, value: Any, label: str) -> _PlotData:
         if isinstance(value, (str, bytes)):
@@ -4625,6 +4678,11 @@ class MatlabLikeAxesBase:
 
     def draw_constant_line_series(self, axes: Any, series: Sequence[ConstantLineSeries]) -> list[Any]:
         """Draw normalized constant reference lines for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_text_series(self, axes: Any, series: Sequence[TextSeries]) -> list[Any]:
+        """Draw normalized axes text annotations for the concrete backend."""
 
         raise NotImplementedError
 

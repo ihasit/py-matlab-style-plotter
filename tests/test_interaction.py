@@ -20,6 +20,7 @@ from py_matlab_style_plotter import (
     PointerEvent,
     ScatterSeries,
     StemSeries,
+    TextSeries,
     ToolState,
 )
 
@@ -100,6 +101,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_fill_series = []
         self.drawn_histogram_series = []
         self.drawn_constant_line_series = []
+        self.drawn_text_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -181,6 +183,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_constant_line_series(self, axes, series):
         self.drawn_constant_line_series.append((axes, tuple(series)))
         return [f"constant-line-{len(self.drawn_constant_line_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_text_series(self, axes, series):
+        self.drawn_text_series.append((axes, tuple(series)))
+        return [f"text-{len(self.drawn_text_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1356,6 +1362,31 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         drawn_axes, series = plotter.drawn_constant_line_series[0]
         self.assertIs(drawn_axes, axes2)
         self.assertEqual(series[0], ConstantLineSeries("y", 3.0, "threshold", "k:", (), (("color", "k"), ("linestyle", ":"))))
+
+    def test_text_adds_annotation_without_nextplot_clear(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.text(1, 2, ["hello", "world"], "Color", "red")
+
+        self.assertEqual(artists, ["text-1-0"])
+        self.assertEqual(axes.clear_calls, [])
+        _axes, series = plotter.drawn_text_series[0]
+        self.assertEqual(series[0], TextSeries(1.0, 2.0, None, ("hello", "world"), (("color", "red"),)))
+
+    def test_text_accepts_3d_and_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2", is_3d=True)
+        plotter = FakePlotter(axes1)
+
+        plotter.text(axes2, 1, 2, 3, "label")
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [])
+        drawn_axes, series = plotter.drawn_text_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0], TextSeries(1.0, 2.0, 3.0, ("label",), ()))
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

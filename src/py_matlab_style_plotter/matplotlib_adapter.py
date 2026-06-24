@@ -26,6 +26,7 @@ from .interaction import (
     PlotSeries,
     ScatterSeries,
     StemSeries,
+    TextSeries,
     TickDirection,
     XAxisLocation,
     YAxisLocation,
@@ -232,6 +233,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 created = axes.axvline(item.value, **kwargs)
             else:
                 created = axes.axhline(item.value, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_text_series(self, axes: Any, series: list[TextSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = dict(item.properties)
+            value = "\n".join(item.text)
+            if item.z is None:
+                created = axes.text(item.x, item.y, value, **kwargs)
+            else:
+                created = axes.text(item.x, item.y, item.z, value, **kwargs)
             artists.append(created)
         self._draw_idle(axes)
         return artists
