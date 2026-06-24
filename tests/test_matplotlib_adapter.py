@@ -239,6 +239,7 @@ class FakeAxes:
         self.camera_up_vector = (0.0, 0.0, 1.0) if is_3d else None
         self._proj_type = "ortho"
         self.plot_calls = []
+        self.errorbar_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -281,6 +282,15 @@ class FakeAxes:
 
     def relim(self):
         self.relim_count += 1
+
+    def errorbar(self, x, y, yerr=None, **kwargs):
+        line = FakeLine(tuple(x), tuple(y), label=str(kwargs.get("label", "series")))
+        line.yerr = yerr
+        line.kwargs = kwargs
+        line.axes = self
+        self.lines.append(line)
+        self.errorbar_calls.append((tuple(x), tuple(y), yerr, kwargs))
+        return line
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -648,6 +658,25 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter.line([1, 2], [3, 4], [5, 6], "LineStyle", "--")
 
         self.assertEqual(axes.plot_calls, [((1.0, 2.0), (3.0, 4.0), (5.0, 6.0), (), {"linestyle": "--"})])
+
+    def test_errorbar_draws_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.errorbar([1, 2], [10, 20], [0.5, 1.0], [1.5, 2.0], "r--", "DisplayName", "err")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.errorbar_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    ((0.5, 1.0), (1.5, 2.0)),
+                    {"color": "r", "linestyle": "--", "label": "err"},
+                )
+            ],
+        )
 
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()

@@ -288,6 +288,19 @@ class Plot3Series:
 
 
 @dataclass(frozen=True)
+class ErrorBarSeries:
+    """One normalized MATLAB-like vertical ``errorbar`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    y_negative: tuple[float, ...]
+    y_positive: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -723,6 +736,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def errorbar(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like vertical error-bar series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_errorbar_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_errorbar_series_order(axes, series)
+        artists = self.draw_errorbar_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -836,6 +864,41 @@ class MatlabLikeAxesBase:
         if axes is self.active_axes:
             self.next_series_index = value
         return None
+
+    def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
+        """Normalize common MATLAB vertical ``errorbar`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 2:
+            raise ValueError("errorbar requires y/e or x/y/e data arguments")
+        style = None
+        if data_args and isinstance(data_args[-1], str):
+            style = data_args[-1]
+            data_args = data_args[:-1]
+        if len(data_args) == 2:
+            x_data = None
+            y_data = self._plot_data(data_args[0], "argument 1")
+            negative_data = self._plot_data(data_args[1], "argument 2")
+            positive_data = negative_data
+        elif len(data_args) == 3:
+            x_data = self._plot_data(data_args[0], "argument 1")
+            y_data = self._plot_data(data_args[1], "argument 2")
+            negative_data = self._plot_data(data_args[2], "argument 3")
+            positive_data = negative_data
+        elif len(data_args) == 4:
+            x_data = self._plot_data(data_args[0], "argument 1")
+            y_data = self._plot_data(data_args[1], "argument 2")
+            negative_data = self._plot_data(data_args[2], "argument 3")
+            positive_data = self._plot_data(data_args[3], "argument 4")
+        else:
+            raise ValueError("errorbar supports y/e, x/y/e, or x/y/negative/positive data")
+        base_series = self._plot_series_from_data(x_data, y_data, style, properties)
+        negatives = self._errorbar_error_columns(negative_data, len(base_series), len(base_series[0].x) if base_series else 0, "negative")
+        positives = self._errorbar_error_columns(positive_data, len(base_series), len(base_series[0].x) if base_series else 0, "positive")
+        return [
+            ErrorBarSeries(series.x, series.y, negative, positive, series.style, series.properties, series.line_spec)
+            for series, negative, positive in zip(base_series, negatives, positives)
+        ]
 
     def normalize_plot3_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[Plot3Series]:
         """Normalize common MATLAB ``plot3`` calling forms into 3D line series."""
@@ -1122,6 +1185,24 @@ class MatlabLikeAxesBase:
             raise ValueError("plot3 z matrix columns must match expanded x and y series")
         return [z_data.column(column) for column in range(z_data.column_count)]
 
+    def _errorbar_error_columns(
+        self,
+        error_data: _PlotData,
+        series_count: int,
+        point_count: int,
+        name: str,
+    ) -> list[tuple[float, ...]]:
+        if error_data.is_vector:
+            values = error_data.as_vector()
+            if len(values) != point_count:
+                raise ValueError(f"errorbar {name} error vector length must match data length")
+            return [values for _index in range(series_count)]
+        if error_data.row_count != point_count:
+            raise ValueError(f"errorbar {name} error row count must match data length")
+        if error_data.column_count != series_count:
+            raise ValueError(f"errorbar {name} error columns must match expanded data series")
+        return [error_data.column(column) for column in range(error_data.column_count)]
+
     def _apply_plot_series_order(self, axes: Any, series: list[PlotSeries]) -> list[PlotSeries]:
         state = self._current_axes_ui_state(axes)
         color_order = state.color_order or self.DEFAULT_COLOR_ORDER
@@ -1171,6 +1252,22 @@ class MatlabLikeAxesBase:
         ordered = self._apply_plot_series_order(axes, proxy)
         return [
             Plot3Series(item.x, item.y, item.z, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
+            for item, ordered_item in zip(series, ordered)
+        ]
+
+    def _apply_errorbar_series_order(self, axes: Any, series: list[ErrorBarSeries]) -> list[ErrorBarSeries]:
+        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
+        ordered = self._apply_plot_series_order(axes, proxy)
+        return [
+            ErrorBarSeries(
+                item.x,
+                item.y,
+                item.y_negative,
+                item.y_positive,
+                ordered_item.style,
+                ordered_item.properties,
+                ordered_item.line_spec,
+            )
             for item, ordered_item in zip(series, ordered)
         ]
 
@@ -4012,6 +4109,11 @@ class MatlabLikeAxesBase:
 
     def draw_plot3_series(self, axes: Any, series: Sequence[Plot3Series]) -> list[Any]:
         """Draw normalized 3D line series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_errorbar_series(self, axes: Any, series: Sequence[ErrorBarSeries]) -> list[Any]:
+        """Draw normalized error-bar series for the concrete backend."""
 
         raise NotImplementedError
 

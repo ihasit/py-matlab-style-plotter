@@ -15,6 +15,7 @@ from .interaction import (
     BoxAspectMode,
     Camera3DState,
     CameraProjection,
+    ErrorBarSeries,
     MatlabLikeAxesBase,
     Plot3Series,
     PlotSeries,
@@ -117,6 +118,16 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             else:
                 created = axes.plot(item.x, item.y, item.z, item.style, **kwargs)
             artists.extend(created if isinstance(created, list) else list(created))
+        self._draw_idle(axes)
+        return artists
+
+    def draw_errorbar_series(self, axes: Any, series: list[ErrorBarSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            yerr = (item.y_negative, item.y_positive)
+            created = axes.errorbar(item.x, item.y, yerr=yerr, **kwargs)
+            artists.append(created)
         self._draw_idle(axes)
         return artists
 

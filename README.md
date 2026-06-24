@@ -20,6 +20,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `line(...)` primitive helper for adding 2D/3D line objects without `NextPlot` clearing or default series-order assignment
 - MATLAB-style `plot3(...)` command template with repeated `x, y, z, LineSpec` groups and the same backend-neutral series-order and `NextPlot` lifecycle handling as `plot(...)`
 - MATLAB-style `stairs(...)` command template that expands stairstep x/y points while reusing `plot(...)` parsing, styling, series-order, and lifecycle behavior
+- MATLAB-style vertical `errorbar(...)` command template for `y/e`, `x/y/e`, and `x/y/negative/positive` forms with shared styling and lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -93,6 +94,10 @@ Name/Value, ColorOrder, LineStyleOrder, hold, and `NextPlot` behavior as
 2D `plot(...)`.
 `stairs(...)` normalizes the same x/y data forms as `plot(...)`, expands each
 series into stairstep points, then draws through the same backend line hook.
+`errorbar(...)` normalizes vertical symmetric and asymmetric error-bar forms,
+including matrix-column expansion, then delegates to a backend errorbar hook
+while preserving LineSpec, Name/Value, series-order, hold, and `NextPlot`
+behavior.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

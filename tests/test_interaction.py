@@ -6,6 +6,7 @@ from py_matlab_style_plotter import (
     AxisDirection,
     BoxAspectMode,
     Camera3DState,
+    ErrorBarSeries,
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
@@ -84,6 +85,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.brushes = []
         self.drawn_series = []
         self.drawn_plot3_series = []
+        self.drawn_errorbar_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -133,6 +135,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_plot3_series(self, axes, series):
         self.drawn_plot3_series.append((axes, tuple(series)))
         return [f"line3-{len(self.drawn_plot3_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_errorbar_series(self, axes, series):
+        self.drawn_errorbar_series.append((axes, tuple(series)))
+        return [f"errorbar-{len(self.drawn_errorbar_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1051,6 +1057,56 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(axes1.clear_calls, [])
         self.assertEqual(axes2.clear_calls, [])
         self.assertIs(plotter.drawn_series[0][0], axes2)
+
+    def test_errorbar_normalizes_y_and_symmetric_error(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.errorbar([10, 20], [1, 2], "r--", "DisplayName", "err")
+
+        self.assertEqual(artists, ["errorbar-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_errorbar_series[0]
+        self.assertEqual(
+            series[0],
+            ErrorBarSeries(
+                (1.0, 2.0),
+                (10.0, 20.0),
+                (1.0, 2.0),
+                (1.0, 2.0),
+                "r--",
+                (("label", "err"),),
+                (("color", "r"), ("linestyle", "--")),
+            ),
+        )
+
+    def test_errorbar_normalizes_x_y_negative_positive_errors(self):
+        plotter = FakePlotter(FakeAxes())
+
+        series = plotter.normalize_errorbar_args(([1, 2], [10, 20], [0.5, 1.0], [1.5, 2.0]))
+
+        self.assertEqual(
+            series,
+            [
+                ErrorBarSeries(
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    (0.5, 1.0),
+                    (1.5, 2.0),
+                )
+            ],
+        )
+
+    def test_errorbar_matrix_columns_expand_errors(self):
+        plotter = FakePlotter(FakeAxes())
+
+        plotter.errorbar([1, 2], [[10, 100], [20, 200]], [[1, 10], [2, 20]])
+
+        _axes, series = plotter.drawn_errorbar_series[0]
+        self.assertEqual(series[0].y, (10.0, 20.0))
+        self.assertEqual(series[0].y_negative, (1.0, 2.0))
+        self.assertEqual(series[1].y, (100.0, 200.0))
+        self.assertEqual(series[1].y_negative, (10.0, 20.0))
 
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())
