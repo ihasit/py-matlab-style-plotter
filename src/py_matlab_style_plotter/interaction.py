@@ -639,6 +639,9 @@ class MatlabLikeAxesBase:
         actual line creation.
         """
 
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
         axes = axes if axes is not None else self.require_active_axes()
         self.set_active_axes(axes)
         series = self.normalize_plot_args(args, kwargs)
@@ -3613,6 +3616,11 @@ class MatlabLikeAxesBase:
         """Draw normalized line series for the concrete backend."""
 
         raise NotImplementedError
+
+    def is_axes_handle(self, value: Any) -> bool:
+        """Return whether ``value`` is a concrete backend axes object."""
+
+        return False
 
     def clear_children(self, axes: Any, reset_properties: bool) -> None:
         """Clear plot children for the concrete backend."""

@@ -107,6 +107,9 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
+    def is_axes_handle(self, value: Any) -> bool:
+        return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
+
     def clear_children(self, axes: Any, reset_properties: bool) -> None:
         self.clear_axes_interaction_state(axes)
         if reset_properties:

@@ -128,6 +128,9 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_series.append((axes, tuple(series)))
         return [f"line-{len(self.drawn_series)}-{index}" for index, _item in enumerate(series)]
 
+    def is_axes_handle(self, value):
+        return isinstance(value, FakeAxes)
+
     def reset_axes_properties(self, axes):
         axes.aspect = "auto"
         axes.box_aspect = "auto"
@@ -737,6 +740,20 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(axes.clear_calls, [])
         self.assertEqual(plotter.drawn_series[0][1][0].x, (1.0, 2.0, 3.0))
         self.assertEqual(plotter.drawn_series[0][1][0].y, (1.0, 2.0, 3.0))
+
+    def test_plot_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.plot(axes2, [10, 20], [30, 40])
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0], PlotSeries((10.0, 20.0), (30.0, 40.0)))
 
     def test_plot_y_matrix_expands_columns(self):
         plotter = FakePlotter(FakeAxes())
