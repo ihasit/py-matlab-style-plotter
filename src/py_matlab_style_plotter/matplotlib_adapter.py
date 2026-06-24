@@ -17,6 +17,7 @@ from .interaction import (
     Camera3DState,
     CameraProjection,
     BarSeries,
+    ConstantLineSeries,
     ErrorBarSeries,
     FillSeries,
     HistogramSeries,
@@ -218,6 +219,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 kwargs.setdefault("bins", item.bins)
             counts, bins, patches = axes.hist(item.values, **kwargs)
             artists.append((counts, bins, patches))
+        self._draw_idle(axes)
+        return artists
+
+    def draw_constant_line_series(self, axes: Any, series: list[ConstantLineSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            if item.label is not None:
+                kwargs.setdefault("label", item.label)
+            if item.orientation == "x":
+                created = axes.axvline(item.value, **kwargs)
+            else:
+                created = axes.axhline(item.value, **kwargs)
+            artists.append(created)
         self._draw_idle(axes)
         return artists
 

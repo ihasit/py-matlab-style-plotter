@@ -8,6 +8,7 @@ from py_matlab_style_plotter import (
     BarSeries,
     BoxAspectMode,
     Camera3DState,
+    ConstantLineSeries,
     ErrorBarSeries,
     FillSeries,
     HistogramSeries,
@@ -98,6 +99,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_area_series = []
         self.drawn_fill_series = []
         self.drawn_histogram_series = []
+        self.drawn_constant_line_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -175,6 +177,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_histogram_series(self, axes, series):
         self.drawn_histogram_series.append((axes, tuple(series)))
         return [f"histogram-{len(self.drawn_histogram_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_constant_line_series(self, axes, series):
+        self.drawn_constant_line_series.append((axes, tuple(series)))
+        return [f"constant-line-{len(self.drawn_constant_line_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -1318,6 +1324,38 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             plotter.histogram([1, 2, 3], 0)
         with self.assertRaisesRegex(ValueError, "strictly increasing"):
             plotter.histogram([1, 2, 3], [0, 2, 2])
+
+    def test_xline_adds_constant_lines_without_nextplot_or_series_order(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.xline([1, 2], "r--", "limit", "LineWidth", 2)
+
+        self.assertEqual(artists, ["constant-line-1-0", "constant-line-1-1"])
+        self.assertEqual(axes.clear_calls, [])
+        _axes, series = plotter.drawn_constant_line_series[0]
+        self.assertEqual(
+            series,
+            (
+                ConstantLineSeries("x", 1.0, "limit", "r--", (("linewidth", 2),), (("color", "r"), ("linestyle", "--"))),
+                ConstantLineSeries("x", 2.0, "limit", "r--", (("linewidth", 2),), (("color", "r"), ("linestyle", "--"))),
+            ),
+        )
+        self.assertEqual(plotter.next_series_index, 0)
+
+    def test_yline_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.yline(axes2, 3, "k:", "threshold")
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [])
+        drawn_axes, series = plotter.drawn_constant_line_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0], ConstantLineSeries("y", 3.0, "threshold", "k:", (), (("color", "k"), ("linestyle", ":"))))
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

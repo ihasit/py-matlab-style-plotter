@@ -246,6 +246,8 @@ class FakeAxes:
         self.fill_between_calls = []
         self.fill_calls = []
         self.hist_calls = []
+        self.axvline_calls = []
+        self.axhline_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -359,6 +361,22 @@ class FakeAxes:
         self.patches.extend(patches)
         self.hist_calls.append((tuple(x), kwargs))
         return counts, bins, patches
+
+    def axvline(self, x=0, **kwargs):
+        line = FakeLine((x, x), self._ylim, label=str(kwargs.get("label", "series")))
+        line.kwargs = kwargs
+        line.axes = self
+        self.lines.append(line)
+        self.axvline_calls.append((x, kwargs))
+        return line
+
+    def axhline(self, y=0, **kwargs):
+        line = FakeLine(self._xlim, (y, y), label=str(kwargs.get("label", "series")))
+        line.kwargs = kwargs
+        line.axes = self
+        self.lines.append(line)
+        self.axhline_calls.append((y, kwargs))
+        return line
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -860,6 +878,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                 )
             ],
         )
+
+    def test_constant_lines_draw_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        x_artists = plotter.xline([1, 2], "r--", "limit", "LineWidth", 2)
+        y_artists = plotter.yline(3, "k:", "threshold")
+
+        self.assertEqual(len(x_artists), 2)
+        self.assertEqual(len(y_artists), 1)
+        self.assertEqual(
+            axes.axvline_calls,
+            [
+                (1.0, {"color": "r", "linestyle": "--", "linewidth": 2, "label": "limit"}),
+                (2.0, {"color": "r", "linestyle": "--", "linewidth": 2, "label": "limit"}),
+            ],
+        )
+        self.assertEqual(axes.axhline_calls, [(3.0, {"color": "k", "linestyle": ":", "label": "threshold"})])
 
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()

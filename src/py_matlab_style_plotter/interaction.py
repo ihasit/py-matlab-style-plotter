@@ -368,6 +368,18 @@ class HistogramSeries:
 
 
 @dataclass(frozen=True)
+class ConstantLineSeries:
+    """One normalized MATLAB-like ``xline`` or ``yline`` series."""
+
+    orientation: Literal["x", "y"]
+    value: float
+    label: str | None = None
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -930,6 +942,32 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def xline(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Add MATLAB-like vertical constant reference lines."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_constant_line_args("x", args, kwargs)
+        artists = self.draw_constant_line_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+    def yline(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Add MATLAB-like horizontal constant reference lines."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_constant_line_args("y", args, kwargs)
+        artists = self.draw_constant_line_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def semilogx(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """MATLAB-like semilogx plot with logarithmic x scale."""
 
@@ -1103,6 +1141,32 @@ class MatlabLikeAxesBase:
         values = self._numeric_vector(data_args[0], "histogram data")
         bins = self._normalize_histogram_bins(data_args[1]) if len(data_args) == 2 else None
         return [HistogramSeries(values, bins, properties)]
+
+    def normalize_constant_line_args(
+        self,
+        orientation: Literal["x", "y"],
+        args: Sequence[Any],
+        kwargs: dict[str, Any] | None = None,
+    ) -> list[ConstantLineSeries]:
+        """Normalize common MATLAB ``xline`` / ``yline`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if not data_args:
+            raise ValueError(f"{orientation}line requires at least one position")
+        positions = self._numeric_vector(data_args[0], f"{orientation}line positions")
+        index = 1
+        style = None
+        if index < len(data_args) and isinstance(data_args[index], str):
+            style = data_args[index]
+            index += 1
+        label = None
+        if index < len(data_args) and isinstance(data_args[index], str):
+            label = data_args[index]
+            index += 1
+        if index != len(data_args):
+            raise ValueError(f"{orientation}line supports positions, optional LineSpec, and optional label")
+        line_spec = self._parse_line_spec(style)
+        return [ConstantLineSeries(orientation, value, label, style, properties, line_spec) for value in positions]
 
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
         """Normalize common MATLAB vertical ``errorbar`` calling forms."""
@@ -4556,6 +4620,11 @@ class MatlabLikeAxesBase:
 
     def draw_histogram_series(self, axes: Any, series: Sequence[HistogramSeries]) -> list[Any]:
         """Draw normalized histogram series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_constant_line_series(self, axes: Any, series: Sequence[ConstantLineSeries]) -> list[Any]:
+        """Draw normalized constant reference lines for the concrete backend."""
 
         raise NotImplementedError
 
