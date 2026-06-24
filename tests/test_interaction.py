@@ -13,6 +13,7 @@ from py_matlab_style_plotter import (
     Plot3Series,
     PlotSeries,
     PointerEvent,
+    ScatterSeries,
     ToolState,
 )
 
@@ -86,6 +87,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_series = []
         self.drawn_plot3_series = []
         self.drawn_errorbar_series = []
+        self.drawn_scatter_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
         self.filtered_events = []
@@ -139,6 +141,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_errorbar_series(self, axes, series):
         self.drawn_errorbar_series.append((axes, tuple(series)))
         return [f"errorbar-{len(self.drawn_errorbar_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_scatter_series(self, axes, series):
+        self.drawn_scatter_series.append((axes, tuple(series)))
+        return [f"scatter-{len(self.drawn_scatter_series)}-{index}" for index, _item in enumerate(series)]
 
     def is_axes_handle(self, value):
         return isinstance(value, FakeAxes)
@@ -935,6 +941,87 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(axes2.clear_calls, [True])
         self.assertEqual(axes2.x_scale, "log")
         self.assertEqual(axes2.y_scale, "log")
+
+    def test_scatter_normalizes_xy_series_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.scatter([1, 2], [3, 4], "DisplayName", "points")
+
+        self.assertEqual(artists, ["scatter-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_scatter_series[0]
+        self.assertEqual(
+            series[0],
+            ScatterSeries(
+                (1.0, 2.0),
+                (3.0, 4.0),
+                None,
+                None,
+                (("label", "points"),),
+                (("color", plotter.DEFAULT_COLOR_ORDER[0]),),
+            ),
+        )
+        self.assertEqual(axes.autoscale_calls, [False])
+        self.assertGreaterEqual(len(plotter.view_stack), 1)
+
+    def test_scatter_assigns_default_color_order_per_series(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.scatter([1, 2], [[10, 100], [20, 200]])
+
+        _axes, series = plotter.drawn_scatter_series[0]
+        self.assertEqual(series[0].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[0]),))
+        self.assertEqual(series[1].line_spec, (("color", plotter.DEFAULT_COLOR_ORDER[1]),))
+        self.assertEqual(plotter.next_series_index, 2)
+
+    def test_scatter_preserves_explicit_size_and_color(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.scatter([1, 2], [3, 4], [20, 40], [1, 0, 0], "LineWidth", 2)
+
+        _axes, series = plotter.drawn_scatter_series[0]
+        self.assertEqual(
+            series[0],
+            ScatterSeries(
+                (1.0, 2.0),
+                (3.0, 4.0),
+                (20.0, 40.0),
+                (1.0, 0.0, 0.0),
+                (("linewidth", 2),),
+                (("color", (1.0, 0.0, 0.0)),),
+            ),
+        )
+        self.assertEqual(plotter.next_series_index, 0)
+
+    def test_scatter_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.scatter(axes2, [10, 20], [30, 40], 36, "blue")
+
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [True])
+        drawn_axes, series = plotter.drawn_scatter_series[0]
+        self.assertIs(drawn_axes, axes2)
+        self.assertEqual(series[0].size, 36.0)
+        self.assertEqual(series[0].color, "blue")
+
+    def test_scatter_validates_size_and_color(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "size vector length"):
+            plotter.scatter([1, 2], [3, 4], [10])
+        with self.assertRaisesRegex(ValueError, "finite nonnegative"):
+            plotter.scatter([1, 2], [3, 4], -1)
+        with self.assertRaisesRegex(ValueError, "RGB triplet"):
+            plotter.scatter([1, 2], [3, 4], 10, [1, 0])
+        with self.assertRaisesRegex(ValueError, "color rows"):
+            plotter.scatter([1, 2], [3, 4], 10, [[1, 0, 0]])
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

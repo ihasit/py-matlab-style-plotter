@@ -240,6 +240,7 @@ class FakeAxes:
         self._proj_type = "ortho"
         self.plot_calls = []
         self.errorbar_calls = []
+        self.scatter_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -291,6 +292,15 @@ class FakeAxes:
         self.lines.append(line)
         self.errorbar_calls.append((tuple(x), tuple(y), yerr, kwargs))
         return line
+
+    def scatter(self, x, y, **kwargs):
+        collection = FakeMappable()
+        collection.x = tuple(x)
+        collection.y = tuple(y)
+        collection.kwargs = kwargs
+        self.collections.append(collection)
+        self.scatter_calls.append((tuple(x), tuple(y), kwargs))
+        return collection
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -674,6 +684,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                     (10.0, 20.0),
                     ((0.5, 1.0), (1.5, 2.0)),
                     {"color": "r", "linestyle": "--", "label": "err"},
+                )
+            ],
+        )
+
+    def test_scatter_draws_series_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.scatter([1, 2], [10, 20], [25, 36], [1, 0, 0], "LineStyle", "--", "DisplayName", "pts")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.scatter_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    {"label": "pts", "s": (25.0, 36.0), "c": (1.0, 0.0, 0.0)},
                 )
             ],
         )

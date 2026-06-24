@@ -301,6 +301,18 @@ class ErrorBarSeries:
 
 
 @dataclass(frozen=True)
+class ScatterSeries:
+    """One normalized MATLAB-like ``scatter`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    size: tuple[float, ...] | float | None = None
+    color: Any | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class _PlotData:
     rows: tuple[tuple[float, ...], ...]
 
@@ -751,6 +763,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def scatter(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like scatter series on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_scatter_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_scatter_series_order(axes, series)
+        artists = self.draw_scatter_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
@@ -864,6 +891,31 @@ class MatlabLikeAxesBase:
         if axes is self.active_axes:
             self.next_series_index = value
         return None
+
+    def normalize_scatter_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ScatterSeries]:
+        """Normalize common MATLAB ``scatter`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 2:
+            raise ValueError("scatter requires x and y data arguments")
+        if len(data_args) > 4:
+            raise ValueError("scatter supports x, y, optional size, and optional color")
+        x_data = self._plot_data(data_args[0], "argument 1")
+        y_data = self._plot_data(data_args[1], "argument 2")
+        size_data = data_args[2] if len(data_args) >= 3 else None
+        color_data = data_args[3] if len(data_args) >= 4 else None
+        base_series = self._plot_series_from_data(x_data, y_data, None, properties)
+        return [
+            ScatterSeries(
+                series.x,
+                series.y,
+                self._normalize_scatter_size(size_data, len(series.x)) if size_data is not None else None,
+                self._normalize_scatter_color(color_data, len(series.x)) if color_data is not None else None,
+                series.properties,
+                series.line_spec,
+            )
+            for series in base_series
+        ]
 
     def normalize_errorbar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[ErrorBarSeries]:
         """Normalize common MATLAB vertical ``errorbar`` calling forms."""
@@ -1203,6 +1255,42 @@ class MatlabLikeAxesBase:
             raise ValueError(f"errorbar {name} error columns must match expanded data series")
         return [error_data.column(column) for column in range(error_data.column_count)]
 
+    def _normalize_scatter_size(self, value: Any, point_count: int) -> tuple[float, ...] | float:
+        if isinstance(value, (str, bytes)):
+            raise ValueError("scatter size must be numeric")
+        try:
+            vector = tuple(float(item) for item in value)
+        except TypeError:
+            size = float(value)
+            if not isfinite(size) or size < 0.0:
+                raise ValueError("scatter size must be a finite nonnegative value")
+            return size
+        except ValueError as exc:
+            raise ValueError("scatter size must be numeric") from exc
+        if len(vector) != point_count:
+            raise ValueError("scatter size vector length must match data length")
+        if any(not isfinite(item) or item < 0.0 for item in vector):
+            raise ValueError("scatter size values must be finite and nonnegative")
+        return vector
+
+    def _normalize_scatter_color(self, value: Any, point_count: int) -> Any:
+        if isinstance(value, str):
+            return value
+        if self._is_plot_row(value):
+            rows = self._normalize_color_order(cast(Sequence[Sequence[float]], value))
+            if len(rows) != point_count:
+                raise ValueError("scatter color rows must match data length")
+            return rows
+        try:
+            vector = tuple(float(item) for item in value)
+        except TypeError:
+            return value
+        except ValueError as exc:
+            raise ValueError("scatter color must be a color string, RGB triplet, or N-by-3 RGB sequence") from exc
+        if len(vector) != 3 or any(not isfinite(item) or item < 0.0 or item > 1.0 for item in vector):
+            raise ValueError("scatter color must be a color string, RGB triplet, or N-by-3 RGB sequence")
+        return vector
+
     def _apply_plot_series_order(self, axes: Any, series: list[PlotSeries]) -> list[PlotSeries]:
         state = self._current_axes_ui_state(axes)
         color_order = state.color_order or self.DEFAULT_COLOR_ORDER
@@ -1270,6 +1358,27 @@ class MatlabLikeAxesBase:
             )
             for item, ordered_item in zip(series, ordered)
         ]
+
+    def _apply_scatter_series_order(self, axes: Any, series: list[ScatterSeries]) -> list[ScatterSeries]:
+        state = self._current_axes_ui_state(axes)
+        color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        next_index = state.next_series_index
+        ordered: list[ScatterSeries] = []
+        for item in series:
+            line_spec = item.line_spec
+            if item.color is not None:
+                line_spec = (*line_spec, ("color", item.color))
+            elif not self._series_has_property(PlotSeries(item.x, item.y, None, item.properties, line_spec), "color") and color_order:
+                line_spec = (*line_spec, ("color", color_order[next_index % len(color_order)]))
+                next_index += 1
+            ordered.append(ScatterSeries(item.x, item.y, item.size, item.color, item.properties, line_spec))
+        state.color_order = color_order
+        state.next_series_index = next_index
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.color_order = color_order
+            self.next_series_index = next_index
+        return ordered
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
         if not style:
@@ -4114,6 +4223,11 @@ class MatlabLikeAxesBase:
 
     def draw_errorbar_series(self, axes: Any, series: Sequence[ErrorBarSeries]) -> list[Any]:
         """Draw normalized error-bar series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_scatter_series(self, axes: Any, series: Sequence[ScatterSeries]) -> list[Any]:
+        """Draw normalized scatter series for the concrete backend."""
 
         raise NotImplementedError
 

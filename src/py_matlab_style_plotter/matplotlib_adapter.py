@@ -19,6 +19,7 @@ from .interaction import (
     MatlabLikeAxesBase,
     Plot3Series,
     PlotSeries,
+    ScatterSeries,
     TickDirection,
     XAxisLocation,
     YAxisLocation,
@@ -127,6 +128,22 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             kwargs = {**dict(item.line_spec), **dict(item.properties)}
             yerr = (item.y_negative, item.y_positive)
             created = axes.errorbar(item.x, item.y, yerr=yerr, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_scatter_series(self, axes: Any, series: list[ScatterSeries]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            color = item.color if item.color is not None else kwargs.get("color")
+            kwargs.pop("color", None)
+            kwargs.pop("linestyle", None)
+            if item.size is not None:
+                kwargs.setdefault("s", item.size)
+            if color is not None:
+                kwargs.setdefault("c", color)
+            created = axes.scatter(item.x, item.y, **kwargs)
             artists.append(created)
         self._draw_idle(axes)
         return artists
