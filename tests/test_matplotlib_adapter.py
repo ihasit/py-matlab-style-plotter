@@ -276,6 +276,7 @@ class FakeAxes:
         self.plot_surface_calls = []
         self.plot_wireframe_calls = []
         self.quiver_calls = []
+        self.pcolormesh_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -468,6 +469,13 @@ class FakeAxes:
         quiver_artist.kwargs = kwargs
         self.quiver_calls.append((x, y, u, v, kwargs))
         return quiver_artist
+
+    def pcolormesh(self, *args, **kwargs):
+        pcolor_artist = FakeMappable()
+        pcolor_artist.args = args
+        pcolor_artist.kwargs = kwargs
+        self.pcolormesh_calls.append((args, kwargs))
+        return pcolor_artist
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -1075,6 +1083,15 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertEqual(len(artists), 1)
         self.assertEqual(len(axes.quiver_calls), 1)
+
+    def test_pcolor_draws_pseudocolor_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.pcolor([[1, 2], [3, 4]], "DisplayName", "pc1")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(len(axes.pcolormesh_calls), 1)
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)
