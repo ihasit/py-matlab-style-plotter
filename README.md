@@ -17,7 +17,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-like exploration tool state snapshots with `tool_state(mode)`, `pan_state()`, `zoom_state()`, and `rotate3d_state()` exposing `Enable`-style on/off state plus tool properties
 - MATLAB-style per-axes `hold on/off`
 - MATLAB-style hold-state queries with `ishold()` or `ishold(axes)`
-- MATLAB-style `NextPlot` lifecycle: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
+- MATLAB-style `NextPlot` lifecycle and public `newplot(...)` helper: `replace` clears axes, resets axes UI/backend properties, and starts a fresh view history, while `add` preserves existing plots and view history
 - MATLAB-style `cla` / `cla reset` helpers for clearing axes children with optional axes property and view-history reset
 - MATLAB-style base `plot(...)` command template with `plot(y)`, `plot(x, y)`, `plot(ax, ...)`, matrix columns, repeated `x, y, LineSpec` groups, MATLAB Name/Value properties, Python keyword properties, and backend-neutral `NextPlot` / `hold` / autoscale lifecycle handling
 - MATLAB-style `line(...)` primitive helper for adding 2D/3D line objects without `NextPlot` clearing or default series-order assignment
@@ -92,7 +92,7 @@ unrecognized style strings are preserved for backends that can handle them.
 Series without explicit `Color` or `LineStyle` use MATLAB-like default
 `ColorOrder` and `LineStyleOrder` values from a per-axes `NextSeriesIndex`;
 `NextPlot="replace"` resets the cycle, while `hold on` continues it. The
-method runs `prepare_for_plot(...)`, delegates actual artist creation to
+method runs `newplot(...)` / `prepare_for_plot(...)`, delegates actual artist creation to
 `draw_plot_series(...)`, then calls `after_plot(...)`. Backends can implement
 one hook and inherit MATLAB-like `hold`/`NextPlot` behavior consistently.
 Use `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` to

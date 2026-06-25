@@ -872,6 +872,33 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.prepare_for_plot()
         self.assertEqual(axes.clear_calls, [True, False])
 
+    def test_newplot_prepares_active_axes_and_returns_it(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        result = plotter.newplot()
+
+        self.assertIs(result, axes)
+        self.assertIs(plotter.active_axes, axes)
+        self.assertEqual(axes.clear_calls, [True])
+
+    def test_newplot_accepts_target_axes_and_applies_its_next_plot(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        plotter.set_active_axes(axes2)
+        plotter.hold("on")
+        plotter.set_active_axes(axes1)
+
+        result = plotter.newplot(axes2)
+
+        self.assertIs(result, axes2)
+        self.assertIs(plotter.active_axes, axes2)
+        self.assertEqual(axes1.clear_calls, [])
+        self.assertEqual(axes2.clear_calls, [])
+        self.assertTrue(plotter.hold_enabled)
+
     def test_cla_clears_children_without_resetting_axes_state(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)

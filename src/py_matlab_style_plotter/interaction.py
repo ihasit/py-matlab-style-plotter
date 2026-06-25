@@ -819,6 +819,14 @@ class MatlabLikeAxesBase:
                 self._load_axes_ui_state(axes)
         return None
 
+    def newplot(self, axes: Any | None = None) -> Any:
+        """Prepare an axes for a new high-level plot and return that axes."""
+
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        self.prepare_for_plot(axes)
+        return axes
+
     def plot(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 2D line series on an axes.
 
