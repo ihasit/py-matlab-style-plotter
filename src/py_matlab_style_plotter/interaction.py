@@ -890,6 +890,26 @@ class MatlabLikeAxesBase:
                 self._load_axes_ui_state(axes)
         return None
 
+
+    def delete(self, handle: Any) -> None:
+        """Delete a MATLAB-like graphics handle and clean up associated state."""
+
+        if self.is_axes_handle(handle):
+            self._delete_axes(handle)
+        else:
+            self.delete_artist(handle)
+
+
+    def _delete_axes(self, axes: Any) -> None:
+        """Clean up all state associated with an axes and delete it."""
+
+        if axes is self.active_axes:
+            self.set_active_axes(None)
+        self.clear_view_history(axes)
+        self._axes_ui_state.pop(axes, None)
+        self._subplot_axes = {k: v for k, v in self._subplot_axes.items() if v is not axes}
+        self.delete_artist(axes)
+
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
 
@@ -5136,6 +5156,11 @@ class MatlabLikeAxesBase:
 
         raise NotImplementedError
 
+
+    def delete_artist(self, artist: Any) -> None:
+        """Delete a single artist from the concrete backend."""
+
+        pass
 
     def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
         """Create a new axes for subplot layout. Concrete backends override this."""

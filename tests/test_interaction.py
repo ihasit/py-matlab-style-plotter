@@ -116,6 +116,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_quiver_series = []
         self.drawn_pcolor_series = []
         self.created_subplot_axes = []
+        self.deleted_artists = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -231,6 +232,9 @@ class FakePlotter(MatlabLikeAxesBase):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
         self.created_subplot_axes.append((rows, columns, position, axes))
         return axes
+
+    def delete_artist(self, artist):
+        self.deleted_artists.append(artist)
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -384,6 +388,32 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, " bad hold "):
             plotter.hold(" bad hold ")
+
+    def test_delete_axes_removes_from_active_and_subplot_cache(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        ax1 = plotter.subplot(2, 2, 1)
+        ax2 = plotter.subplot(2, 2, 2)
+        plotter.set_active_axes(ax1)
+
+        plotter.delete(ax1)
+
+        self.assertIsNone(plotter.active_axes)
+        self.assertIn(ax1, plotter.deleted_artists)
+        self.assertEqual(plotter._subplot_axes.get((2, 2, 1)), None)
+        self.assertEqual(plotter._subplot_axes.get((2, 2, 2)), ax2)
+
+    def test_delete_non_axes_calls_delete_artist(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        class FakeArtist:
+            pass
+
+        artist = FakeArtist()
+        plotter.delete(artist)
+        self.assertIn(artist, plotter.deleted_artists)
 
     def test_subplot_creates_and_reuses_axes_in_grid(self):
         axes = FakeAxes()

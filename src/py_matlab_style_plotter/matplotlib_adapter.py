@@ -368,6 +368,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return fig.add_subplot(rows, columns, position)
 
 
+    def delete_artist(self, artist: Any) -> None:
+        try:
+            artist.remove()
+        except (NotImplementedError, ValueError):
+            pass
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 
