@@ -396,6 +396,18 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return children
 
 
+    def copy_artist(self, artist: Any, target: Any) -> Any:
+        import copy
+        new_artist = copy.copy(artist)
+        if hasattr(new_artist, "axes"):
+            new_artist.axes = target
+        for attr in ("lines", "collections", "images", "patches"):
+            if hasattr(target, attr) and isinstance(getattr(target, attr), list):
+                getattr(target, attr).append(new_artist)
+                break
+        return new_artist
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

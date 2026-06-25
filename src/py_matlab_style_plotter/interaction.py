@@ -945,6 +945,13 @@ class MatlabLikeAxesBase:
 
         return []
 
+
+    def copyobj(self, handle: Any, parent: Any | None = None) -> Any:
+        """Copy a MATLAB-like graphics handle to a target parent, like ``copyobj``."""
+
+        target = parent if parent is not None else self.require_active_axes()
+        return self.copy_artist(handle, target)
+
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
 
@@ -5206,6 +5213,11 @@ class MatlabLikeAxesBase:
         """Get a property from a concrete backend artist."""
 
         return None
+
+    def copy_artist(self, artist: Any, target: Any) -> Any:
+        """Copy an artist to a target axes. Backend overrides this."""
+
+        raise NotImplementedError
 
     def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
         """Create a new axes for subplot layout. Concrete backends override this."""

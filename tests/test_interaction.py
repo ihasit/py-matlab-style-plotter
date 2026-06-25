@@ -120,6 +120,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.property_changes = []
         self.property_queries = []
         self.child_objects = []
+        self.copied_artists = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -244,6 +245,10 @@ class FakePlotter(MatlabLikeAxesBase):
 
     def get_children(self, obj):
         return getattr(obj, 'child_list', [])
+
+    def copy_artist(self, artist, target):
+        self.copied_artists.append((artist, target))
+        return f"copy-of-{getattr(artist, 'name', id(artist))}"
 
     def get_artist_property(self, artist, name):
         self.property_queries.append((artist, name))
@@ -401,6 +406,31 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, " bad hold "):
             plotter.hold(" bad hold ")
+
+    def test_copyobj_delegates_to_backend_copy_artist(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        class FakeArtist:
+            name = "line1"
+
+        artist = FakeArtist()
+        result = plotter.copyobj(artist, axes)
+
+        self.assertEqual(plotter.copied_artists[-1], (artist, axes))
+        self.assertEqual(result, "copy-of-line1")
+
+    def test_copyobj_defaults_to_active_axes(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        class FakeArtist:
+            name = "scatter1"
+
+        artist = FakeArtist()
+        result = plotter.copyobj(artist)
+
+        self.assertEqual(plotter.copied_artists[-1], (artist, axes))
 
     def test_findobj_returns_matching_objects_recursively(self):
         axes = FakeAxes()
