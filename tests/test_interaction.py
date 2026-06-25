@@ -22,6 +22,7 @@ from py_matlab_style_plotter import (
     Plot3Series,
     PlotSeries,
     PointerEvent,
+    SpySeries,
     ScatterSeries,
     SurfaceSeries,
     StemSeries,
@@ -115,6 +116,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_mesh_series = []
         self.drawn_quiver_series = []
         self.drawn_pcolor_series = []
+        self.drawn_spy_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -231,6 +233,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_pcolor_series(self, axes, series):
         self.drawn_pcolor_series.append((axes, tuple(series)))
         return [f"pcolor-{len(self.drawn_pcolor_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_spy_series(self, axes, series):
+        self.drawn_spy_series.append((axes, tuple(series)))
+        return [f"spy-{len(self.drawn_spy_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -1949,6 +1955,40 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "quiver requires"):
             plotter.quiver([1], [2], [3])
 
+
+
+    def test_spy_normalizes_sparse_matrix_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        matrix = [[0, 1, 0], [1, 0, 1]]
+        artists = plotter.spy(matrix)
+
+        self.assertEqual(artists, ["spy-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_spy_series[0]
+        self.assertEqual(series[0].row_indices, (0, 1, 1))
+        self.assertEqual(series[0].col_indices, (1, 0, 2))
+        self.assertEqual(series[0].nrows, 2)
+        self.assertEqual(series[0].ncols, 3)
+
+    def test_spy_accepts_positional_axes(self):
+        axes1 = FakeAxes("axes1")
+        axes2 = FakeAxes("axes2")
+        plotter = FakePlotter(axes1)
+
+        artists = plotter.spy(axes2, [[1, 0], [0, 1]])
+
+        self.assertIs(plotter.active_axes, axes2)
+        _axes, series = plotter.drawn_spy_series[0]
+        self.assertEqual(series[0].row_indices, (0, 1))
+        self.assertEqual(series[0].col_indices, (0, 1))
+
+    def test_spy_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "matrix argument"):
+            plotter.spy()
 
     def test_pcolor_normalizes_cdata_and_runs_lifecycle(self):
         axes = FakeAxes()

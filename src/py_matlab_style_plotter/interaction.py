@@ -434,6 +434,17 @@ class PColorSeries:
 
 
 @dataclass(frozen=True)
+class SpySeries:
+    """One normalized MATLAB-like spy (sparsity pattern) series."""
+
+    row_indices: tuple[int, ...]
+    col_indices: tuple[int, ...]
+    nrows: int
+    ncols: int
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class QuiverSeries:
     """One normalized MATLAB-like quiver (vector field) series."""
 
@@ -1215,6 +1226,21 @@ class MatlabLikeAxesBase:
         return artists
 
 
+    def spy(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like sparsity pattern plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_spy_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_spy_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+
     def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scaled image data on an axes."""
 
@@ -1594,6 +1620,34 @@ class MatlabLikeAxesBase:
         else:
             raise ValueError("pcolor requires CData or X/Y/CData arguments")
         return [PColorSeries(cdata, x_data, y_data, properties)]
+
+
+    def normalize_spy_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[SpySeries]:
+        """Normalize common MATLAB ``spy`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("spy requires a matrix argument")
+        matrix = data_args[0]
+        if not hasattr(matrix, "__len__"):
+            raise ValueError("spy requires a matrix argument")
+        row_indices: list[int] = []
+        col_indices: list[int] = []
+        nrows = len(matrix)
+        ncols = 0
+        for r, row in enumerate(matrix):
+            if hasattr(row, "__len__"):
+                ncols = max(ncols, len(row))
+                for c, val in enumerate(row):
+                    if val != 0:
+                        row_indices.append(r)
+                        col_indices.append(c)
+            else:
+                ncols = max(ncols, 1)
+                if row != 0:
+                    row_indices.append(0)
+                    col_indices.append(r)
+        return [SpySeries(tuple(row_indices), tuple(col_indices), nrows, ncols, properties)]
 
 
     def normalize_constant_line_args(
@@ -5221,6 +5275,12 @@ class MatlabLikeAxesBase:
 
     def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
         """Create a new axes for subplot layout. Concrete backends override this."""
+
+        raise NotImplementedError
+
+
+    def draw_spy_series(self, axes: Any, series: Sequence[SpySeries]) -> list[Any]:
+        """Draw normalized spy (sparsity pattern) series for the concrete backend."""
 
         raise NotImplementedError
 

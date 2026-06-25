@@ -408,6 +408,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return new_artist
 
 
+    def draw_spy_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            import numpy as np
+            matrix = np.zeros((item.nrows, item.ncols))
+            for r, c in zip(item.row_indices, item.col_indices):
+                matrix[r, c] = 1
+            created = axes.spy(matrix, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

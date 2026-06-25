@@ -283,6 +283,7 @@ class FakeAxes:
         self.plot_wireframe_calls = []
         self.quiver_calls = []
         self.pcolormesh_calls = []
+        self.spy_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -482,6 +483,13 @@ class FakeAxes:
         pcolor_artist.kwargs = kwargs
         self.pcolormesh_calls.append((args, kwargs))
         return pcolor_artist
+
+    def spy(self, matrix, **kwargs):
+        spy_artist = FakeMappable()
+        spy_artist.matrix = matrix
+        spy_artist.kwargs = kwargs
+        self.spy_calls.append((matrix, kwargs))
+        return spy_artist
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -1089,6 +1097,16 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertEqual(len(artists), 1)
         self.assertEqual(len(axes.quiver_calls), 1)
+
+
+    def test_spy_draws_sparsity_pattern_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.spy([[0, 1], [1, 0]])
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(len(axes.spy_calls), 1)
 
     def test_pcolor_draws_pseudocolor_through_matplotlib_axes(self):
         axes = FakeAxes()
