@@ -551,6 +551,57 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 
 
+
+    def test_feather_normalizes_uv_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.feather([1, 0, -1], [0, 1, 0])
+
+        self.assertEqual(artists, ["quiver-1-0"])
+        _axes, series = plotter.drawn_quiver_series[0]
+        self.assertEqual(len(series[0].u), 3)
+
+    def test_feather_accepts_rho_only(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.feather([1, 2, 3])
+
+        _axes, series = plotter.drawn_quiver_series[0]
+        self.assertEqual(len(series[0].u), 3)
+
+    def test_feather_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "feather requires"):
+            plotter.feather()
+
+    def test_compass_normalizes_uv_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.compass([1, 0, -1], [0, 1, 0])
+
+        self.assertEqual(artists, ["quiver-1-0"])
+        _axes, series = plotter.drawn_quiver_series[0]
+        self.assertEqual(len(series[0].u), 3)
+
+    def test_compass_accepts_rho_only(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.compass([1, 2, 3])
+
+        _axes, series = plotter.drawn_quiver_series[0]
+        self.assertEqual(len(series[0].u), 3)
+
+    def test_compass_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "compass requires"):
+            plotter.compass()
+
     def test_heatmap_normalizes_data_and_runs_lifecycle(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)

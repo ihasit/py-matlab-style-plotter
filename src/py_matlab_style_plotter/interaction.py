@@ -1115,6 +1115,67 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+
+    def feather(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like feather plot (angle/magnitude vectors from origin)."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("feather requires theta/rho or U/V data")
+        if len(data_args) == 1:
+            rho = self._numeric_vector(data_args[0], "feather rho")
+            theta = tuple(float(i) for i in range(len(rho)))
+            import math
+            u = tuple(r * math.cos(t) for r, t in zip(rho, theta))
+            v = tuple(r * math.sin(t) for r, t in zip(rho, theta))
+        elif len(data_args) == 2:
+            u = self._numeric_vector(data_args[0], "feather U")
+            v = self._numeric_vector(data_args[1], "feather V")
+        else:
+            raise ValueError("feather requires rho or U/V arguments")
+        x = tuple(float(i) for i in range(len(u)))
+        y = tuple(0.0 for _ in u)
+        self.prepare_for_plot(axes)
+        series = [QuiverSeries(u, v, x, y, properties)]
+        artists = self.draw_quiver_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+    def compass(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like compass plot (angle/magnitude vectors from origin)."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("compass requires theta/rho or U/V data")
+        if len(data_args) == 1:
+            rho = self._numeric_vector(data_args[0], "compass rho")
+            theta = tuple(float(i) for i in range(len(rho)))
+            import math
+            u = tuple(r * math.cos(t) for r, t in zip(rho, theta))
+            v = tuple(r * math.sin(t) for r, t in zip(rho, theta))
+        elif len(data_args) == 2:
+            u = self._numeric_vector(data_args[0], "compass U")
+            v = self._numeric_vector(data_args[1], "compass V")
+        else:
+            raise ValueError("compass requires rho or U/V arguments")
+        x = tuple(0.0 for _ in u)
+        y = tuple(0.0 for _ in u)
+        self.prepare_for_plot(axes)
+        series = [QuiverSeries(u, v, x, y, properties)]
+        artists = self.draw_quiver_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
 
