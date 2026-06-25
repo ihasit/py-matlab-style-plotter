@@ -669,6 +669,7 @@ class MatlabLikeAxesBase:
         self.camera_up_vector_mode: CameraVectorMode = "auto"
         self.camera_projection: CameraProjection = "orthographic"
         self._axes_ui_state: dict[Any, AxesUIState] = {}
+        self._subplot_axes: dict[tuple[int, int, int], Any] = {}
         if axes is not None:
             self._save_axes_ui_state(axes)
         self.view_stack: list[ViewState] = []
@@ -716,6 +717,32 @@ class MatlabLikeAxesBase:
 
     def gca(self) -> Any | None:
         return self.current_axes()
+
+    def subplot(self, *args: Any) -> Any:
+        """Create or select a MATLAB-like subplot in a grid layout.
+
+        Accepts ``subplot(m, n, p)`` or MATLAB shorthand ``subplot(mnp)``.
+        """
+
+        if len(args) == 3:
+            m, n, p = int(args[0]), int(args[1]), int(args[2])
+        elif len(args) == 1:
+            value = int(args[0])
+            m = value // 100
+            n = (value // 10) % 10
+            p = value % 10
+        else:
+            raise ValueError("subplot requires (m, n, p) or a single 3-digit integer")
+        if m < 1 or n < 1 or p < 1 or p > m * n:
+            raise ValueError(f"subplot position {p} is out of {m}x{n} grid range (1..{m * n})")
+        key = (m, n, p)
+        axes = self._subplot_axes.get(key)
+        if axes is None:
+            axes = self.create_subplot_axes(m, n, p)
+            self._subplot_axes[key] = axes
+        self.set_active_axes(axes)
+        return axes
+
 
     def is_active_axes(self, axes: Any | None) -> bool:
         return self.active_axes is axes
@@ -5106,6 +5133,12 @@ class MatlabLikeAxesBase:
 
     def draw_pcolor_series(self, axes: Any, series: Sequence[PColorSeries]) -> list[Any]:
         """Draw normalized pseudocolor series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+    def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
+        """Create a new axes for subplot layout. Concrete backends override this."""
 
         raise NotImplementedError
 

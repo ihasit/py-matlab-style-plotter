@@ -152,11 +152,17 @@ class FakeFigure:
         self.canvas = FakeCanvas()
         self.axes = []
         self.colorbar_calls = []
+        self.add_subplot_calls = []
 
     def colorbar(self, mappable, ax=None):
         colorbar = FakeColorbar(mappable, ax)
         self.colorbar_calls.append((mappable, ax, colorbar))
         return colorbar
+
+    def add_subplot(self, *args):
+        self.add_subplot_calls.append(args)
+        axes = FakeAxes(figure=self)
+        return axes
 
 
 class FakeLine:
@@ -1092,6 +1098,18 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertEqual(len(artists), 1)
         self.assertEqual(len(axes.pcolormesh_calls), 1)
+    def test_subplot_creates_axes_through_matplotlib_figure(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        ax = plotter.subplot(2, 3, 1)
+        self.assertEqual(axes.figure.add_subplot_calls, [(2, 3, 1)])
+        self.assertIs(plotter.active_axes, ax)
+
+        ax_again = plotter.subplot(2, 3, 1)
+        self.assertIs(ax_again, ax)
+        self.assertEqual(len(axes.figure.add_subplot_calls), 1)
+
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)

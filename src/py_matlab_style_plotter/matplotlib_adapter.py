@@ -361,6 +361,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
+        fig = self.active_axes.figure if self.active_axes is not None else None
+        if fig is None:
+            raise RuntimeError("subplot requires an active axes with a figure")
+        return fig.add_subplot(rows, columns, position)
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

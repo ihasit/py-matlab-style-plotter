@@ -169,6 +169,7 @@ to existing images and collections on the target axes.
 `mesh(...)` shares the same calling-form normalization as `surf(...)` but delegates to `draw_mesh_series(...)` for wireframe rendering.
 `quiver(...)` normalizes `quiver(U, V)` and `quiver(X, Y, U, V)` forms into backend-neutral `QuiverSeries` records. It accepts numeric velocity components, optional position vectors, Name/Value properties, and `NextPlot` lifecycle behavior before delegating to `draw_quiver_series(...)`.
 `pcolor(...)` normalizes `pcolor(C)` and `pcolor(X, Y, C)` forms into backend-neutral `PColorSeries` records. It accepts numeric matrix CData, optional X/Y coordinate vectors, Name/Value properties, `NextPlot` lifecycle behavior, and autoscaled color limits when `clim` mode is `auto`, before delegating to `draw_pcolor_series(...)`.
+`subplot(m, n, p)` creates or selects an axes in an m-by-n grid at position p, matching MATLAB's subplot layout. Shorthand `subplot(mnp)` with a three-digit integer is also accepted. Previously created subplot axes are cached and reused. The helper delegates actual axes creation to the `create_subplot_axes(rows, columns, position)` backend hook, and the Matplotlib adapter calls `figure.add_subplot(...)`.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

@@ -115,6 +115,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_mesh_series = []
         self.drawn_quiver_series = []
         self.drawn_pcolor_series = []
+        self.created_subplot_axes = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -225,6 +226,11 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_pcolor_series(self, axes, series):
         self.drawn_pcolor_series.append((axes, tuple(series)))
         return [f"pcolor-{len(self.drawn_pcolor_series)}-{index}" for index, _item in enumerate(series)]
+
+    def create_subplot_axes(self, rows, columns, position):
+        axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
+        self.created_subplot_axes.append((rows, columns, position, axes))
+        return axes
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -378,6 +384,39 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, " bad hold "):
             plotter.hold(" bad hold ")
+
+    def test_subplot_creates_and_reuses_axes_in_grid(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        ax1 = plotter.subplot(2, 3, 1)
+        self.assertEqual(plotter.created_subplot_axes[-1], (2, 3, 1, ax1))
+        self.assertIs(plotter.active_axes, ax1)
+
+        ax1_again = plotter.subplot(2, 3, 1)
+        self.assertIs(ax1_again, ax1)
+        self.assertEqual(len(plotter.created_subplot_axes), 1)
+
+        ax2 = plotter.subplot(2, 3, 4)
+        self.assertEqual(plotter.created_subplot_axes[-1], (2, 3, 4, ax2))
+        self.assertIs(plotter.active_axes, ax2)
+
+    def test_subplot_accepts_shorthand_three_digit_integer(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        ax = plotter.subplot(231)
+        self.assertEqual(plotter.created_subplot_axes[-1], (2, 3, 1, ax))
+
+    def test_subplot_validates_grid_and_position(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "subplot requires"):
+            plotter.subplot(1, 2)
+        with self.assertRaisesRegex(ValueError, "out of.*grid range"):
+            plotter.subplot(2, 3, 7)
+        with self.assertRaisesRegex(ValueError, "out of.*grid range"):
+            plotter.subplot(2, 3, 0)
 
     def test_gca_returns_current_axes(self):
         axes1 = FakeAxes("a1")
