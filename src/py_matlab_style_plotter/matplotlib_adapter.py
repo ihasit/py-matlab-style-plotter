@@ -502,7 +502,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_pareto_series(self, axes: Any, series: list) -> list:
+    def draw_pareto_series(self, axes: Any, series: list[Any]) -> list[Any]:
         import numpy as np
         artists = []
         for item in series:
@@ -524,7 +524,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_heatmap_series(self, axes: Any, series: list) -> list:
+    def draw_heatmap_series(self, axes: Any, series: list[Any]) -> list[Any]:
         import numpy as np
         artists = []
         for item in series:
@@ -541,7 +541,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_rose_series(self, axes: Any, series: list) -> list:
+    def draw_rose_series(self, axes: Any, series: list[Any]) -> list[Any]:
         import numpy as np
         artists = []
         for item in series:
