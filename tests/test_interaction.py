@@ -119,6 +119,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.deleted_artists = []
         self.property_changes = []
         self.property_queries = []
+        self.child_objects = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -240,6 +241,9 @@ class FakePlotter(MatlabLikeAxesBase):
 
     def set_artist_property(self, artist, name, value):
         self.property_changes.append((artist, name, value))
+
+    def get_children(self, obj):
+        return getattr(obj, 'child_list', [])
 
     def get_artist_property(self, artist, name):
         self.property_queries.append((artist, name))
@@ -397,6 +401,31 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, " bad hold "):
             plotter.hold(" bad hold ")
+
+    def test_findobj_returns_matching_objects_recursively(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        class FakeObj:
+            def __init__(self, name, children=None):
+                self.name = name
+                self.child_list = children or []
+
+        child1 = FakeObj("line1")
+        child2 = FakeObj("line2")
+        root = FakeObj("axes", [child1, child2])
+
+        # No filter - returns all
+        result = plotter.findobj(root)
+        self.assertEqual(result, [root, child1, child2])
+
+        # Filter by property
+        result = plotter.findobj(root, "name", "line1")
+        self.assertEqual(result, [child1])
+
+        # Filter by property existence
+        result = plotter.findobj(root, "name")
+        self.assertEqual(len(result), 3)
 
     def test_set_and_get_delegate_to_backend_hooks(self):
         axes = FakeAxes()

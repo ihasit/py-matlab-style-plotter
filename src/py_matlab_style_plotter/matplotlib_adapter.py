@@ -389,6 +389,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return getattr(artist, name, None)
 
 
+    def get_children(self, obj: Any) -> list:
+        children = []
+        for attr in ("lines", "collections", "images", "patches"):
+            children.extend(getattr(obj, attr, []))
+        return children
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

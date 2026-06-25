@@ -921,6 +921,30 @@ class MatlabLikeAxesBase:
 
         return self.get_artist_property(handle, name)
 
+
+    def findobj(self, handle: Any | None = None, name: str | None = None, value: Any = None) -> list[Any]:
+        """Find graphics objects matching a property filter, like MATLAB ``findobj``."""
+
+        root = handle if handle is not None else self.require_active_axes()
+        matches: list[Any] = []
+        self._collect_matching_objects(root, name, value, matches)
+        return matches
+
+    def _collect_matching_objects(self, obj: Any, name: str | None, value: Any, matches: list[Any]) -> None:
+        if name is not None:
+            actual = self.get(obj, name)
+            if value is None or actual == value:
+                matches.append(obj)
+        else:
+            matches.append(obj)
+        for child in self.get_children(obj):
+            self._collect_matching_objects(child, name, value, matches)
+
+    def get_children(self, obj: Any) -> list[Any]:
+        """Return child objects of a graphics handle. Backend overrides this."""
+
+        return []
+
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
 
