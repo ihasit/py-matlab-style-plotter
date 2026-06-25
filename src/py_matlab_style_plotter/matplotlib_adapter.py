@@ -490,6 +490,18 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def draw_pie_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            if item.labels is not None:
+                kwargs["labels"] = item.labels
+            created = axes.pie(item.data, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

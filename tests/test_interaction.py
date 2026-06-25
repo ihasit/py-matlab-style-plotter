@@ -23,6 +23,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     AnnotationSeries,
+    PieSeries,
     PolarSeries,
     SpySeries,
     ScatterSeries,
@@ -123,6 +124,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_spy_series = []
         self.drawn_annotation_series = []
         self.drawn_polar_series = []
+        self.drawn_pie_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -254,6 +256,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_polar_series(self, axes, series):
         self.drawn_polar_series.append((axes, tuple(series)))
         return [f"polar-{len(self.drawn_polar_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_pie_series(self, axes, series):
+        self.drawn_pie_series.append((axes, tuple(series)))
+        return [f"pie-{len(self.drawn_pie_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -529,6 +535,33 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 
 
+
+
+    def test_pie_normalizes_data_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.pie([30, 20, 50])
+
+        self.assertEqual(artists, ["pie-1-0"])
+        _axes, series = plotter.drawn_pie_series[0]
+        self.assertEqual(series[0].data, (30.0, 20.0, 50.0))
+        self.assertIsNone(series[0].labels)
+
+    def test_pie_accepts_labels(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.pie([30, 20, 50], ["A", "B", "C"])
+
+        _axes, series = plotter.drawn_pie_series[0]
+        self.assertEqual(series[0].labels, ("A", "B", "C"))
+
+    def test_pie_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "data values"):
+            plotter.pie()
 
     def test_polarplot_normalizes_theta_rho_and_runs_lifecycle(self):
         axes = FakeAxes()

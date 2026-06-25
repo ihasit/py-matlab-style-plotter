@@ -472,6 +472,16 @@ class PolarSeries:
     line_spec: tuple[tuple[str, Any], ...] = ()
 
 
+
+@dataclass(frozen=True)
+class PieSeries:
+    """One normalized MATLAB-like pie chart series."""
+
+    data: tuple[float, ...]
+    labels: tuple[str, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
 @dataclass(frozen=True)
 class QuiverSeries:
     """One normalized MATLAB-like quiver (vector field) series."""
@@ -1034,6 +1044,21 @@ class MatlabLikeAxesBase:
         series = self.normalize_polar_args(args, kwargs)
         self.prepare_for_plot(axes)
         artists = self.draw_polar_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+
+    def pie(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like pie chart on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_pie_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_pie_series(axes, series)
         self.after_plot(axes)
         return artists
 
@@ -1855,6 +1880,19 @@ class MatlabLikeAxesBase:
             raise ValueError("polarplot requires theta or theta/rho arguments")
         line_spec = self._parse_line_spec(style) if style else ()
         return [PolarSeries(theta, rho, style, properties, line_spec)]
+
+
+    def normalize_pie_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PieSeries]:
+        """Normalize common MATLAB ``pie`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("pie requires data values")
+        values = self._numeric_vector(data_args[0], "pie data")
+        labels = None
+        if len(data_args) > 1:
+            labels = tuple(str(v) for v in data_args[1])
+        return [PieSeries(values, labels, properties)]
 
     def normalize_constant_line_args(
         self,
@@ -5545,6 +5583,13 @@ class MatlabLikeAxesBase:
 
     def draw_polar_series(self, axes: Any, series: Sequence[PolarSeries]) -> list[Any]:
         """Draw normalized polar series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+
+    def draw_pie_series(self, axes: Any, series: Sequence[PieSeries]) -> list[Any]:
+        """Draw normalized pie chart series for the concrete backend."""
 
         raise NotImplementedError
 
