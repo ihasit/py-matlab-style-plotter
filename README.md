@@ -37,7 +37,8 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `contour(...)` command template for contour plots with Z matrix, optional X/Y coordinates, optional level count or level vector, and shared plot lifecycle behavior
 - MATLAB-style `subtitle(...)` helper
 - MATLAB-style `sgtitle(...)` helper
-- MATLAB-style `yyaxis("left"|"right")` helper for dual y-axis plots with per-axes left/right side tracking for subplot group titles, stored per-axes in view history for secondary axes descriptions, stored per-axes in view history
+- MATLAB-style `yyaxis("left"|"right")` helper
+- MATLAB-style `colordef("white"|"dark")` helper for setting default color scheme for dual y-axis plots with per-axes left/right side tracking for subplot group titles, stored per-axes in view history for secondary axes descriptions, stored per-axes in view history
 - MATLAB-style `subplot(m, n, p)` and `subplot(mnp)` helpers for creating and selecting axes in a figure grid layout, with cached reuse of existing subplot axes
 - MATLAB-style `contourf(...)` command template for filled contour plots sharing `contour(...)` arg normalization and lifecycle behavior
 - MATLAB-style `contour3(...)` command template for 3D contour projections sharing `contour(...)` arg normalization and rendering

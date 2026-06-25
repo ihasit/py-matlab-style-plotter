@@ -129,6 +129,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.copied_artists = []
         self.flush_calls = 0
         self.yyaxis_changes = []
+        self.colordef_changes = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -271,6 +272,9 @@ class FakePlotter(MatlabLikeAxesBase):
 
     def set_yyaxis_side(self, axes, side):
         self.yyaxis_changes.append((axes, side))
+
+    def set_color_scheme(self, axes, scheme):
+        self.colordef_changes.append((axes, scheme))
 
     def get_artist_property(self, artist, name):
         self.property_queries.append((artist, name))
@@ -3250,6 +3254,26 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 
 
+
+
+    def test_colordef_sets_white_dark_scheme(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        result = plotter.colordef("white")
+        self.assertEqual(result, "white")
+        self.assertEqual(plotter._color_scheme, "white")
+        self.assertEqual(plotter.colordef_changes[-1], (axes, "white"))
+
+        result = plotter.colordef("dark")
+        self.assertEqual(result, "dark")
+        self.assertEqual(plotter._color_scheme, "dark")
+
+    def test_colordef_rejects_invalid_scheme(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "white.*dark"):
+            plotter.colordef("rainbow")
 
     def test_yyaxis_sets_left_right_side(self):
         axes = FakeAxes()

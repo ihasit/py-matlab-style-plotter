@@ -698,6 +698,7 @@ class MatlabLikeAxesBase:
         self.camera_target_mode: CameraVectorMode = "auto"
         self.camera_up_vector_mode: CameraVectorMode = "auto"
         self.camera_projection: CameraProjection = "orthographic"
+        self._color_scheme: str = "white"
         self._axes_ui_state: dict[Any, AxesUIState] = {}
         self._subplot_axes: dict[tuple[int, int, int], Any] = {}
         if axes is not None:
@@ -995,6 +996,19 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+
+
+    def colordef(self, scheme: str = "white") -> str:
+        """MATLAB-like color defaults. Sets white or dark background scheme."""
+
+        normalized = scheme.strip().lower()
+        if normalized not in ("white", "dark", "black", "none"):
+            raise ValueError(f"colordef scheme must be 'white', 'dark', 'black', or 'none', got {scheme!r}")
+        self._color_scheme = normalized
+        axes = self.active_axes
+        if axes is not None:
+            self.set_color_scheme(axes, normalized)
+        return normalized
 
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
@@ -5452,6 +5466,11 @@ class MatlabLikeAxesBase:
 
     def set_yyaxis_side(self, axes: Any, side: str) -> None:
         """Set active y-axis side for dual y-axis plots. Backend overrides this."""
+
+        pass
+
+    def set_color_scheme(self, axes: Any, scheme: str) -> None:
+        """Set color scheme for the concrete backend."""
 
         pass
 
