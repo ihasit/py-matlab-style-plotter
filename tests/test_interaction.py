@@ -128,6 +128,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.child_objects = []
         self.copied_artists = []
         self.flush_calls = 0
+        self.yyaxis_changes = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -267,6 +268,9 @@ class FakePlotter(MatlabLikeAxesBase):
 
     def _flush_graphics(self, axes):
         self.flush_calls += 1
+
+    def set_yyaxis_side(self, axes, side):
+        self.yyaxis_changes.append((axes, side))
 
     def get_artist_property(self, artist, name):
         self.property_queries.append((artist, name))
@@ -3245,6 +3249,35 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertIsNone(plotter.zticklabelrotation(45))
 
 
+
+
+    def test_yyaxis_sets_left_right_side(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        result = plotter.yyaxis("left")
+        self.assertEqual(result, "left")
+        self.assertEqual(plotter.yyaxis_side, "left")
+        self.assertEqual(plotter.yyaxis_changes[-1], (axes, "left"))
+
+        result = plotter.yyaxis("right")
+        self.assertEqual(result, "right")
+        self.assertEqual(plotter.yyaxis_side, "right")
+        self.assertEqual(plotter.yyaxis_changes[-1], (axes, "right"))
+
+    def test_yyaxis_rejects_invalid_side(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "left.*right"):
+            plotter.yyaxis("middle")
+
+    def test_yyaxis_is_scoped_per_axes(self):
+        axes1 = FakeAxes("a1")
+        axes2 = FakeAxes("a2")
+        plotter = FakePlotter(axes1)
+
+        plotter.yyaxis("right", axes=axes2)
+        self.assertEqual(plotter.yyaxis_side, "left")  # active axes unchanged
 
     def test_sgtitle_query_set_and_record_history(self):
         axes = FakeAxes()

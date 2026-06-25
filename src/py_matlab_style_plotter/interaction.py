@@ -115,6 +115,7 @@ class ViewState:
     axes_title: tuple[str, ...] = ()
     subtitle_text: tuple[str, ...] = ()
     sgtitle_text: tuple[str, ...] = ()
+    yyaxis_side: str = "left"
     xlabel_text: tuple[str, ...] = ()
     ylabel_text: tuple[str, ...] = ()
     zlabel_text: tuple[str, ...] = ()
@@ -194,6 +195,7 @@ class AxesUIState:
     axes_title: tuple[str, ...] = ()
     subtitle_text: tuple[str, ...] = ()
     sgtitle_text: tuple[str, ...] = ()
+    yyaxis_side: str = "left"
     xlabel_text: tuple[str, ...] = ()
     ylabel_text: tuple[str, ...] = ()
     zlabel_text: tuple[str, ...] = ()
@@ -667,6 +669,7 @@ class MatlabLikeAxesBase:
         self.axes_title: tuple[str, ...] = ()
         self.subtitle_text: tuple[str, ...] = ()
         self.sgtitle_text: tuple[str, ...] = ()
+        self.yyaxis_side: str = "left"
         self.xlabel_text: tuple[str, ...] = ()
         self.ylabel_text: tuple[str, ...] = ()
         self.zlabel_text: tuple[str, ...] = ()
@@ -1936,6 +1939,20 @@ class MatlabLikeAxesBase:
     def sgtitle(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
         """MATLAB-like subplot group title."""
         return self._text_property("sgtitle", value, axes)
+
+    def yyaxis(self, side: str, axes: Any | None = None) -> str:
+        """MATLAB-like dual y-axis control. Activates left or right y-axis."""
+        axes = axes if axes is not None else self.require_active_axes()
+        normalized = side.strip().lower()
+        if normalized not in ("left", "right"):
+            raise ValueError(f"yyaxis side must be 'left' or 'right', got {side!r}")
+        state = self._current_axes_ui_state(axes)
+        state.yyaxis_side = normalized
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.yyaxis_side = normalized
+        self.set_yyaxis_side(axes, normalized)
+        return normalized
 
     def xlabel(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
         return self._text_property("xlabel", value, axes)
@@ -4121,6 +4138,7 @@ class MatlabLikeAxesBase:
             axes_title=self.axes_title,
             subtitle_text=self.subtitle_text,
             sgtitle_text=self.sgtitle_text,
+            yyaxis_side=self.yyaxis_side,
             xlabel_text=self.xlabel_text,
             ylabel_text=self.ylabel_text,
             zlabel_text=self.zlabel_text,
@@ -4201,6 +4219,7 @@ class MatlabLikeAxesBase:
         self.axes_title = state.axes_title
         self.subtitle_text = state.subtitle_text
         self.sgtitle_text = state.sgtitle_text
+        self.yyaxis_side = state.yyaxis_side
         self.xlabel_text = state.xlabel_text
         self.ylabel_text = state.ylabel_text
         self.zlabel_text = state.zlabel_text
@@ -4745,6 +4764,7 @@ class MatlabLikeAxesBase:
         self.axes_title = state.axes_title
         self.subtitle_text = state.subtitle_text
         self.sgtitle_text = state.sgtitle_text
+        self.yyaxis_side = state.yyaxis_side
         self.xlabel_text = state.xlabel_text
         self.ylabel_text = state.ylabel_text
         self.zlabel_text = state.zlabel_text
@@ -5429,6 +5449,11 @@ class MatlabLikeAxesBase:
         """Copy an artist to a target axes. Backend overrides this."""
 
         raise NotImplementedError
+
+    def set_yyaxis_side(self, axes: Any, side: str) -> None:
+        """Set active y-axis side for dual y-axis plots. Backend overrides this."""
+
+        pass
 
     def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
         """Create a new axes for subplot layout. Concrete backends override this."""

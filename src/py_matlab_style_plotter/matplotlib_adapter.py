@@ -465,6 +465,15 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def set_yyaxis_side(self, axes: Any, side: str) -> None:
+        if side == "right":
+            if not hasattr(axes, "_yyaxis_right") or axes._yyaxis_right is None:
+                axes._yyaxis_right = axes.twinx()
+            axes._yyaxis_active = "right"
+        else:
+            axes._yyaxis_active = "left"
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 
