@@ -35,6 +35,22 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `imagesc(...)` command template for scaled image CData with optional x/y endpoints, color-limit autoscaling, and shared plot lifecycle behavior
 - MATLAB-style `colormap(...)` helper for querying or setting per-axes named colormaps or N-by-3 RGB colormap matrices
 - MATLAB-style `contour(...)` command template for contour plots with Z matrix, optional X/Y coordinates, optional level count or level vector, and shared plot lifecycle behavior
+- MATLAB-style `subtitle(...)` helper for secondary axes descriptions, stored per-axes in view history
+- MATLAB-style `subplot(m, n, p)` and `subplot(mnp)` helpers for creating and selecting axes in a figure grid layout, with cached reuse of existing subplot axes
+- MATLAB-style `contourf(...)` command template for filled contour plots sharing `contour(...)` arg normalization and lifecycle behavior
+- MATLAB-style `contour3(...)` command template for 3D contour projections sharing `contour(...)` arg normalization and rendering
+- MATLAB-style `surf(...)` and `mesh(...)` command templates for 3D surface and wireframe plots with Z matrix, optional X/Y coordinates, optional color data, and shared plot lifecycle behavior
+- MATLAB-style `waterfall(...)` command template for waterfall plots sharing `surf(...)` arg normalization and mesh rendering
+- MATLAB-style `ribbon(...)` command template for ribbon plots sharing `surf(...)` arg normalization and mesh rendering
+- MATLAB-style `quiver(...)` command template for vector field plots with U/V components, optional X/Y positions, and shared plot lifecycle behavior
+- MATLAB-style `pcolor(...)` command template for pseudocolor checkerboard plots with CData, optional X/Y coordinates, and shared plot lifecycle behavior
+- MATLAB-style `spy(...)` command template for visualizing matrix sparsity patterns with shared plot lifecycle behavior
+- MATLAB-style `annotation(type, ...)` helpers for figure-level annotations including `line`, `arrow`, `textarrow`, `textbox`, `ellipse`, and `rectangle`
+- MATLAB-like `delete(handle)` helper for removing graphics handles, cleaning up active-axes state, subplot cache, and view history
+- MATLAB-like `copyobj(handle, parent)` helper for copying graphics handles to a target axes
+- MATLAB-like `set(handle, name, value)` and `get(handle, name)` helpers for querying and setting properties on graphics handles
+- MATLAB-like `findobj(handle, name, value)` helper for recursively searching graphics handles by property
+- MATLAB-like `drawnow()` helper for flushing pending graphics updates
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
