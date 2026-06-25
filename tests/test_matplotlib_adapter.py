@@ -275,6 +275,7 @@ class FakeAxes:
         self.contourf_calls = []
         self.plot_surface_calls = []
         self.plot_wireframe_calls = []
+        self.quiver_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -457,6 +458,16 @@ class FakeAxes:
         wireframe_artist.kwargs = kwargs
         self.plot_wireframe_calls.append((x, y, z, kwargs))
         return wireframe_artist
+
+    def quiver(self, x, y, u, v, **kwargs):
+        quiver_artist = FakeMappable()
+        quiver_artist.x = x
+        quiver_artist.y = y
+        quiver_artist.u = u
+        quiver_artist.v = v
+        quiver_artist.kwargs = kwargs
+        self.quiver_calls.append((x, y, u, v, kwargs))
+        return quiver_artist
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -1055,6 +1066,15 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertEqual(len(artists), 1)
         self.assertEqual(len(axes.plot_wireframe_calls), 1)
+
+    def test_quiver_draws_vector_field_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.quiver([10, 20], [30, 40], [1, 2], [3, 4], "DisplayName", "field1")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(len(axes.quiver_calls), 1)
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)

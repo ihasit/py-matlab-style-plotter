@@ -423,6 +423,17 @@ class SurfaceSeries:
     properties: tuple[tuple[str, Any], ...] = ()
 
 
+@dataclass(frozen=True)
+class QuiverSeries:
+    """One normalized MATLAB-like quiver (vector field) series."""
+
+    u: tuple[float, ...]
+    v: tuple[float, ...]
+    x: tuple[float, ...] | None = None
+    y: tuple[float, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
 
 @dataclass(frozen=True)
 class _PlotData:
@@ -1073,6 +1084,21 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def quiver(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like vector field (quiver) plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_quiver_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_quiver_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+
     def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scaled image data on an axes."""
 
@@ -1416,6 +1442,25 @@ class MatlabLikeAxesBase:
         else:
             raise ValueError("surf requires Z, X/Y/Z, or X/Y/Z/C arguments")
         return [SurfaceSeries(zdata, x_data, y_data, cdata, properties)]
+
+
+    def normalize_quiver_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[QuiverSeries]:
+        """Normalize common MATLAB ``quiver`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        x_data = None
+        y_data = None
+        if len(data_args) == 2:
+            u = self._numeric_vector(data_args[0], "U")
+            v = self._numeric_vector(data_args[1], "V")
+        elif len(data_args) == 4:
+            x_data = self._numeric_vector(data_args[0], "x")
+            y_data = self._numeric_vector(data_args[1], "y")
+            u = self._numeric_vector(data_args[2], "U")
+            v = self._numeric_vector(data_args[3], "V")
+        else:
+            raise ValueError("quiver requires U/V or X/Y/U/V arguments")
+        return [QuiverSeries(u, v, x_data, y_data, properties)]
 
 
     def normalize_constant_line_args(
@@ -5005,6 +5050,12 @@ class MatlabLikeAxesBase:
 
     def draw_mesh_series(self, axes: Any, series: Sequence[SurfaceSeries]) -> list[Any]:
         """Draw normalized mesh/wireframe series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+    def draw_quiver_series(self, axes: Any, series: Sequence[QuiverSeries]) -> list[Any]:
+        """Draw normalized quiver (vector field) series for the concrete backend."""
 
         raise NotImplementedError
 

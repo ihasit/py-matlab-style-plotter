@@ -17,6 +17,7 @@ from py_matlab_style_plotter import (
     InteractionMode,
     MatlabLikeAxesBase,
     MouseButton,
+    QuiverSeries,
     Plot3Series,
     PlotSeries,
     PointerEvent,
@@ -111,6 +112,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_contourf_series = []
         self.drawn_surf_series = []
         self.drawn_mesh_series = []
+        self.drawn_quiver_series = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -213,6 +215,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_mesh_series(self, axes, series):
         self.drawn_mesh_series.append((axes, tuple(series)))
         return [f"mesh-{len(self.drawn_mesh_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_quiver_series(self, axes, series):
+        self.drawn_quiver_series.append((axes, tuple(series)))
+        return [f"quiver-{len(self.drawn_quiver_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -1754,6 +1760,39 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             plotter.surf([])
         with self.assertRaisesRegex(ValueError, "surf requires"):
             plotter.surf([1, 2], [3, 4], [5, 6], [7, 8], [9, 10])
+
+
+    def test_quiver_normalizes_uv_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.quiver([1, 2], [3, 4])
+
+        self.assertEqual(artists, ["quiver-1-0"])
+        _axes, series = plotter.drawn_quiver_series[0]
+        self.assertEqual(series[0].u, (1.0, 2.0))
+        self.assertEqual(series[0].v, (3.0, 4.0))
+        self.assertIsNone(series[0].x)
+
+    def test_quiver_accepts_xy_uv(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.quiver([10, 20], [30, 40], [1, 2], [3, 4])
+
+        _axes, series = plotter.drawn_quiver_series[0]
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+        self.assertEqual(series[0].u, (1.0, 2.0))
+        self.assertEqual(series[0].v, (3.0, 4.0))
+
+    def test_quiver_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "quiver requires"):
+            plotter.quiver([1])
+        with self.assertRaisesRegex(ValueError, "quiver requires"):
+            plotter.quiver([1], [2], [3])
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

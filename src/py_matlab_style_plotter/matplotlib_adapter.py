@@ -333,6 +333,21 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def draw_quiver_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            if item.x is not None and item.y is not None:
+                created = axes.quiver(item.x, item.y, item.u, item.v, **kwargs)
+            else:
+                import numpy as np
+                y_grid, x_grid = np.mgrid[0:len(item.u), 0:len(item.u[0]) if item.u else 0]
+                created = axes.quiver(x_grid, y_grid, item.u, item.v, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 
