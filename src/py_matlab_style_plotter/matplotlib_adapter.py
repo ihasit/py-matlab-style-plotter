@@ -502,6 +502,28 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def draw_pareto_series(self, axes: Any, series: list) -> list:
+        import numpy as np
+        artists = []
+        for item in series:
+            data = np.array(item.data)
+            sorted_indices = np.argsort(-data)
+            sorted_data = data[sorted_indices]
+            cumulative = np.cumsum(sorted_data) / np.sum(sorted_data) * 100
+            bar_labels = item.labels if item.labels is not None else [str(i) for i in range(len(data))]
+            sorted_labels = [bar_labels[i] for i in sorted_indices]
+            bar_artist = axes.bar(range(len(sorted_data)), sorted_data)
+            axes.set_xticks(range(len(sorted_data)))
+            axes.set_xticklabels(sorted_labels)
+            ax2 = axes.twinx()
+            ax2.plot(range(len(sorted_data)), cumulative, "r-o")
+            ax2.set_ylabel("Cumulative %")
+            ax2.set_ylim(0, 105)
+            artists.append(bar_artist)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

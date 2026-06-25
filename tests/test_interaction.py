@@ -23,6 +23,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     AnnotationSeries,
+    ParetoSeries,
     PieSeries,
     PolarSeries,
     SpySeries,
@@ -125,6 +126,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_annotation_series = []
         self.drawn_polar_series = []
         self.drawn_pie_series = []
+        self.drawn_pareto_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -260,6 +262,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_pie_series(self, axes, series):
         self.drawn_pie_series.append((axes, tuple(series)))
         return [f"pie-{len(self.drawn_pie_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_pareto_series(self, axes, series):
+        self.drawn_pareto_series.append((axes, tuple(series)))
+        return [f"pareto-{len(self.drawn_pareto_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -536,6 +542,32 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 
 
+
+
+    def test_pareto_normalizes_data_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.pareto([50, 20, 10, 15, 5])
+
+        self.assertEqual(artists, ["pareto-1-0"])
+        _axes, series = plotter.drawn_pareto_series[0]
+        self.assertEqual(series[0].data, (50.0, 20.0, 10.0, 15.0, 5.0))
+
+    def test_pareto_accepts_labels(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.pareto([50, 20, 10], ["A", "B", "C"])
+
+        _axes, series = plotter.drawn_pareto_series[0]
+        self.assertEqual(series[0].labels, ("A", "B", "C"))
+
+    def test_pareto_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "data values"):
+            plotter.pareto()
 
     def test_pie_normalizes_data_and_runs_lifecycle(self):
         axes = FakeAxes()

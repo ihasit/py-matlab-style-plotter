@@ -48,7 +48,8 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `quiver(...)` command template for vector field plots with U/V components, optional X/Y positions, and shared plot lifecycle behavior
 - MATLAB-style `pcolor(...)` command template for pseudocolor checkerboard plots with CData, optional X/Y coordinates, and shared plot lifecycle behavior
 - MATLAB-style `polarplot(theta, rho)`
-- MATLAB-style `pie(data, labels)` command template for pie charts with optional labels and shared plot lifecycle behavior command template for polar coordinate plots with shared plot lifecycle behavior
+- MATLAB-style `pie(data, labels)`
+- MATLAB-style `pareto(data, labels)` command template for Pareto charts with cumulative percentage line, optional labels, and shared plot lifecycle behavior command template for pie charts with optional labels and shared plot lifecycle behavior command template for polar coordinate plots with shared plot lifecycle behavior
 - MATLAB-style `spy(...)` command template for visualizing matrix sparsity patterns with shared plot lifecycle behavior
 - MATLAB-style `annotation(type, ...)` helpers for figure-level annotations including `line`, `arrow`, `textarrow`, `textbox`, `ellipse`, and `rectangle`
 - MATLAB-like `delete(handle)` helper for removing graphics handles, cleaning up active-axes state, subplot cache, and view history
