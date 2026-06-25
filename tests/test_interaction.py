@@ -48,6 +48,7 @@ class FakeAxes:
         self.zticklabel_rotation = 0.0
         self.axes_title = ()
         self.subtitle_text = ()
+        self.sgtitle_text = ()
         self.xlabel_text = ()
         self.ylabel_text = ()
         self.zlabel_text = ()
@@ -3243,6 +3244,23 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertIsNone(plotter.zticklabelrotation("mode"))
         self.assertIsNone(plotter.zticklabelrotation(45))
 
+
+
+    def test_sgtitle_query_set_and_record_history(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        self.assertEqual(plotter.sgtitle(), ())
+        plotter.sgtitle("Group Title")
+        self.assertEqual(plotter.sgtitle_text, ("Group Title",))
+        self.assertEqual(axes.sgtitle_text, ("Group Title",))
+
+    def test_sgtitle_supports_multiline(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.sgtitle(["Main", "Details"])
+        self.assertEqual(plotter.sgtitle_text, ("Main", "Details"))
 
     def test_subtitle_query_set_and_record_history(self):
         axes = FakeAxes()

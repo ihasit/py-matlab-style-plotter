@@ -35,7 +35,8 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `imagesc(...)` command template for scaled image CData with optional x/y endpoints, color-limit autoscaling, and shared plot lifecycle behavior
 - MATLAB-style `colormap(...)` helper for querying or setting per-axes named colormaps or N-by-3 RGB colormap matrices
 - MATLAB-style `contour(...)` command template for contour plots with Z matrix, optional X/Y coordinates, optional level count or level vector, and shared plot lifecycle behavior
-- MATLAB-style `subtitle(...)` helper for secondary axes descriptions, stored per-axes in view history
+- MATLAB-style `subtitle(...)` helper
+- MATLAB-style `sgtitle(...)` helper for subplot group titles, stored per-axes in view history for secondary axes descriptions, stored per-axes in view history
 - MATLAB-style `subplot(m, n, p)` and `subplot(mnp)` helpers for creating and selecting axes in a figure grid layout, with cached reuse of existing subplot axes
 - MATLAB-style `contourf(...)` command template for filled contour plots sharing `contour(...)` arg normalization and lifecycle behavior
 - MATLAB-style `contour3(...)` command template for 3D contour projections sharing `contour(...)` arg normalization and rendering
