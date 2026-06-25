@@ -113,6 +113,7 @@ class ViewState:
     yticklabel_rotation_mode: LimitMode = "auto"
     zticklabel_rotation_mode: LimitMode = "auto"
     axes_title: tuple[str, ...] = ()
+    subtitle_text: tuple[str, ...] = ()
     xlabel_text: tuple[str, ...] = ()
     ylabel_text: tuple[str, ...] = ()
     zlabel_text: tuple[str, ...] = ()
@@ -190,6 +191,7 @@ class AxesUIState:
     yticklabel_rotation_mode: LimitMode = "auto"
     zticklabel_rotation_mode: LimitMode = "auto"
     axes_title: tuple[str, ...] = ()
+    subtitle_text: tuple[str, ...] = ()
     xlabel_text: tuple[str, ...] = ()
     ylabel_text: tuple[str, ...] = ()
     zlabel_text: tuple[str, ...] = ()
@@ -661,6 +663,7 @@ class MatlabLikeAxesBase:
         self.yticklabel_rotation_mode: LimitMode = "auto"
         self.zticklabel_rotation_mode: LimitMode = "auto"
         self.axes_title: tuple[str, ...] = ()
+        self.subtitle_text: tuple[str, ...] = ()
         self.xlabel_text: tuple[str, ...] = ()
         self.ylabel_text: tuple[str, ...] = ()
         self.zlabel_text: tuple[str, ...] = ()
@@ -1923,6 +1926,10 @@ class MatlabLikeAxesBase:
     def title(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
         return self._text_property("title", value, axes)
 
+    def subtitle(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
+        """MATLAB-like subtitle for secondary axes description."""
+        return self._text_property("subtitle", value, axes)
+
     def xlabel(self, value: Any | None = None, axes: Any | None = None) -> tuple[str, ...] | None:
         return self._text_property("xlabel", value, axes)
 
@@ -1934,7 +1941,7 @@ class MatlabLikeAxesBase:
 
     def _text_property(
         self,
-        kind: Literal["title", "xlabel", "ylabel", "zlabel"],
+        kind: Literal["title", "subtitle", "xlabel", "ylabel", "zlabel"],
         value: Any | None,
         axes: Any | None,
     ) -> tuple[str, ...] | None:
@@ -1953,9 +1960,11 @@ class MatlabLikeAxesBase:
         self.push_current_view(axes)
         return None
 
-    def _text_state_attr(self, kind: Literal["title", "xlabel", "ylabel", "zlabel"]) -> str:
+    def _text_state_attr(self, kind: Literal["title", "subtitle", "xlabel", "ylabel", "zlabel"]) -> str:
         if kind == "title":
             return "axes_title"
+        if kind == "subtitle":
+            return "subtitle_text"
         return f"{kind}_text"
 
     def _normalize_text_value(self, value: Any) -> tuple[str, ...]:
@@ -4101,6 +4110,7 @@ class MatlabLikeAxesBase:
             yticklabel_rotation_mode=self.yticklabel_rotation_mode,
             zticklabel_rotation_mode=self.zticklabel_rotation_mode,
             axes_title=self.axes_title,
+            subtitle_text=self.subtitle_text,
             xlabel_text=self.xlabel_text,
             ylabel_text=self.ylabel_text,
             zlabel_text=self.zlabel_text,
@@ -4179,6 +4189,7 @@ class MatlabLikeAxesBase:
         self.yticklabel_rotation_mode = state.yticklabel_rotation_mode
         self.zticklabel_rotation_mode = state.zticklabel_rotation_mode
         self.axes_title = state.axes_title
+        self.subtitle_text = state.subtitle_text
         self.xlabel_text = state.xlabel_text
         self.ylabel_text = state.ylabel_text
         self.zlabel_text = state.zlabel_text
@@ -4721,6 +4732,7 @@ class MatlabLikeAxesBase:
         self.yticklabel_rotation_mode = state.yticklabel_rotation_mode
         self.zticklabel_rotation_mode = state.zticklabel_rotation_mode
         self.axes_title = state.axes_title
+        self.subtitle_text = state.subtitle_text
         self.xlabel_text = state.xlabel_text
         self.ylabel_text = state.ylabel_text
         self.zlabel_text = state.zlabel_text
