@@ -910,6 +910,17 @@ class MatlabLikeAxesBase:
         self._subplot_axes = {k: v for k, v in self._subplot_axes.items() if v is not axes}
         self.delete_artist(axes)
 
+
+    def set(self, handle: Any, name: str, value: Any) -> None:
+        """Set a property on a MATLAB-like graphics handle."""
+
+        self.set_artist_property(handle, name, value)
+
+    def get(self, handle: Any, name: str) -> Any:
+        """Get a property from a MATLAB-like graphics handle."""
+
+        return self.get_artist_property(handle, name)
+
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
 
@@ -5161,6 +5172,16 @@ class MatlabLikeAxesBase:
         """Delete a single artist from the concrete backend."""
 
         pass
+
+    def set_artist_property(self, artist: Any, name: str, value: Any) -> None:
+        """Set a property on a concrete backend artist."""
+
+        pass
+
+    def get_artist_property(self, artist: Any, name: str) -> Any:
+        """Get a property from a concrete backend artist."""
+
+        return None
 
     def create_subplot_axes(self, rows: int, columns: int, position: int) -> Any:
         """Create a new axes for subplot layout. Concrete backends override this."""

@@ -117,6 +117,8 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_pcolor_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
+        self.property_changes = []
+        self.property_queries = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -235,6 +237,13 @@ class FakePlotter(MatlabLikeAxesBase):
 
     def delete_artist(self, artist):
         self.deleted_artists.append(artist)
+
+    def set_artist_property(self, artist, name, value):
+        self.property_changes.append((artist, name, value))
+
+    def get_artist_property(self, artist, name):
+        self.property_queries.append((artist, name))
+        return getattr(artist, name, None)
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -388,6 +397,18 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, " bad hold "):
             plotter.hold(" bad hold ")
+
+    def test_set_and_get_delegate_to_backend_hooks(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.set(axes, "grid_visible", True)
+        self.assertEqual(plotter.property_changes[-1], (axes, "grid_visible", True))
+
+        axes.grid_visible = True
+        result = plotter.get(axes, "grid_visible")
+        self.assertEqual(plotter.property_queries[-1], (axes, "grid_visible"))
+        self.assertTrue(result)
 
     def test_delete_axes_removes_from_active_and_subplot_cache(self):
         axes = FakeAxes()

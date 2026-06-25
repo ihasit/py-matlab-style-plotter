@@ -375,6 +375,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             pass
 
 
+    def set_artist_property(self, artist: Any, name: str, value: Any) -> None:
+        setter = getattr(artist, f"set_{name}", None)
+        if setter is not None:
+            setter(value)
+        elif hasattr(artist, name):
+            setattr(artist, name, value)
+
+    def get_artist_property(self, artist: Any, name: str) -> Any:
+        getter = getattr(artist, f"get_{name}", None)
+        if getter is not None:
+            return getter()
+        return getattr(artist, name, None)
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 
