@@ -21,6 +21,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     ScatterSeries,
+    SurfaceSeries,
     StemSeries,
     TextSeries,
     ToolState,
@@ -108,6 +109,8 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_text_series = []
         self.drawn_contour_series = []
         self.drawn_contourf_series = []
+        self.drawn_surf_series = []
+        self.drawn_mesh_series = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -202,6 +205,14 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_contourf_series(self, axes, series):
         self.drawn_contourf_series.append((axes, tuple(series)))
         return [f"contourf-{len(self.drawn_contourf_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_surf_series(self, axes, series):
+        self.drawn_surf_series.append((axes, tuple(series)))
+        return [f"surf-{len(self.drawn_surf_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_mesh_series(self, axes, series):
+        self.drawn_mesh_series.append((axes, tuple(series)))
+        return [f"mesh-{len(self.drawn_mesh_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -1700,6 +1711,49 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             plotter.contour([])
         with self.assertRaisesRegex(ValueError, "contour requires"):
             plotter.contour([1, 2], [3, 4], [5, 6], [7, 8], [9, 10])
+
+
+    def test_surf_normalizes_z_and_runs_lifecycle(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.surf([[1, 2], [3, 4]])
+
+        self.assertEqual(artists, ["surf-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_surf_series[0]
+        self.assertEqual(series[0].zdata, ((1.0, 2.0), (3.0, 4.0)))
+        self.assertIsNone(series[0].x)
+        self.assertIsNone(series[0].cdata)
+
+    def test_surf_accepts_x_y_z_and_cdata(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.surf([10, 20], [30, 40], [[1, 2], [3, 4]], [[5, 6], [7, 8]])
+
+        _axes, series = plotter.drawn_surf_series[0]
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+        self.assertEqual(series[0].cdata, ((5.0, 6.0), (7.0, 8.0)))
+
+    def test_mesh_normalizes_z_and_runs_lifecycle(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.mesh([[1, 2], [3, 4]])
+
+        self.assertEqual(artists, ["mesh-1-0"])
+        _axes, series = plotter.drawn_mesh_series[0]
+        self.assertEqual(series[0].zdata, ((1.0, 2.0), (3.0, 4.0)))
+
+    def test_surf_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "nonempty"):
+            plotter.surf([])
+        with self.assertRaisesRegex(ValueError, "surf requires"):
+            plotter.surf([1, 2], [3, 4], [5, 6], [7, 8], [9, 10])
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)

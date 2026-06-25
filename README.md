@@ -165,6 +165,8 @@ with values in `[0, 1]`. The Matplotlib adapter applies the selected colormap
 to existing images and collections on the target axes.
 `contour(...)` normalizes `contour(Z)`, `contour(Z, n)`, `contour(X, Y, Z)`, and `contour(X, Y, Z, v)` forms into backend-neutral `ContourSeries` records. It accepts numeric matrix ZData, optional X/Y coordinate vectors, an optional scalar level count or explicit level vector, Name/Value properties, `NextPlot` lifecycle behavior, and autoscaled color limits when `clim` mode is `auto`, before delegating to `draw_contour_series(...)`.
 `contourf(...)` shares the same calling-form normalization as `contour(...)` but delegates to `draw_contourf_series(...)` for filled contour rendering.
+`surf(...)` normalizes `surf(Z)`, `surf(X, Y, Z)`, and `surf(X, Y, Z, C)` forms into backend-neutral `SurfaceSeries` records. It accepts numeric matrix ZData, optional X/Y coordinate vectors, optional color data, Name/Value properties, `NextPlot` lifecycle behavior, and autoscaled color limits when `clim` mode is `auto`, before delegating to `draw_surf_series(...)`.
+`mesh(...)` shares the same calling-form normalization as `surf(...)` but delegates to `draw_mesh_series(...)` for wireframe rendering.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

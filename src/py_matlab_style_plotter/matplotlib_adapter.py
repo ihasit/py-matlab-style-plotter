@@ -289,6 +289,50 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
+    def draw_surf_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            if item.cdata is not None:
+                kwargs.setdefault("cmap", None)
+            if item.x is not None and item.y is not None:
+                import numpy as np
+                x_arr = np.array(item.x)
+                y_arr = np.array(item.y)
+                z_arr = np.array(item.zdata)
+                x_grid, y_grid = np.meshgrid(x_arr, y_arr)
+                created = axes.plot_surface(x_grid, y_grid, z_arr, **kwargs)
+            else:
+                import numpy as np
+                z_arr = np.array(item.zdata)
+                y_grid, x_grid = np.mgrid[0:z_arr.shape[0], 0:z_arr.shape[1]]
+                created = axes.plot_surface(x_grid, y_grid, z_arr, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+    def draw_mesh_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            kwargs.setdefault("edgecolor", kwargs.pop("edge_color", "k"))
+            if item.x is not None and item.y is not None:
+                import numpy as np
+                x_arr = np.array(item.x)
+                y_arr = np.array(item.y)
+                z_arr = np.array(item.zdata)
+                x_grid, y_grid = np.meshgrid(x_arr, y_arr)
+                created = axes.plot_wireframe(x_grid, y_grid, z_arr, **kwargs)
+            else:
+                import numpy as np
+                z_arr = np.array(item.zdata)
+                y_grid, x_grid = np.mgrid[0:z_arr.shape[0], 0:z_arr.shape[1]]
+                created = axes.plot_wireframe(x_grid, y_grid, z_arr, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

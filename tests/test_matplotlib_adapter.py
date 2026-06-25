@@ -273,6 +273,8 @@ class FakeAxes:
         self.imshow_calls = []
         self.contour_calls = []
         self.contourf_calls = []
+        self.plot_surface_calls = []
+        self.plot_wireframe_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -437,6 +439,24 @@ class FakeAxes:
         contourf_artist.kwargs = kwargs
         self.contourf_calls.append((args, kwargs))
         return contourf_artist
+
+    def plot_surface(self, x, y, z, **kwargs):
+        surface_artist = FakeMappable()
+        surface_artist.x = x
+        surface_artist.y = y
+        surface_artist.z = z
+        surface_artist.kwargs = kwargs
+        self.plot_surface_calls.append((x, y, z, kwargs))
+        return surface_artist
+
+    def plot_wireframe(self, x, y, z, **kwargs):
+        wireframe_artist = FakeMappable()
+        wireframe_artist.x = x
+        wireframe_artist.y = y
+        wireframe_artist.z = z
+        wireframe_artist.kwargs = kwargs
+        self.plot_wireframe_calls.append((x, y, z, kwargs))
+        return wireframe_artist
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -1017,6 +1037,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         args, kwargs = axes.contourf_calls[0]
         self.assertEqual(args, ((10.0, 20.0), (30.0, 40.0), ((1.0, 2.0), (3.0, 4.0)),))
         self.assertEqual(kwargs.get("label"), "contourf1")
+
+    def test_surf_draws_surface_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.surf([[1, 2], [3, 4]], "DisplayName", "surf1")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(len(axes.plot_surface_calls), 1)
+
+    def test_mesh_draws_wireframe_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.mesh([[1, 2], [3, 4]])
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(len(axes.plot_wireframe_calls), 1)
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)

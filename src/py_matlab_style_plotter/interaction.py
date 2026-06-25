@@ -412,6 +412,17 @@ class ContourSeries:
     properties: tuple[tuple[str, Any], ...] = ()
 
 
+@dataclass(frozen=True)
+class SurfaceSeries:
+    """One normalized MATLAB-like surface series."""
+
+    zdata: tuple[tuple[float, ...], ...]
+    x: tuple[float, ...] | None = None
+    y: tuple[float, ...] | None = None
+    cdata: tuple[tuple[float, ...], ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
 
 @dataclass(frozen=True)
 class _PlotData:
@@ -1030,6 +1041,38 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def surf(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like 3D surface plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_surf_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_surf_series(axes, series)
+        if self.clim_mode == "auto":
+            self.autoscale_clim(axes)
+        self.after_plot(axes)
+        return artists
+
+    def mesh(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like 3D wireframe mesh plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_surf_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_mesh_series(axes, series)
+        if self.clim_mode == "auto":
+            self.autoscale_clim(axes)
+        self.after_plot(axes)
+        return artists
+
     def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scaled image data on an axes."""
 
@@ -1351,6 +1394,29 @@ class MatlabLikeAxesBase:
         else:
             raise ValueError("contour requires Z, Z/n, X/Y/Z, or X/Y/Z/n arguments")
         return [ContourSeries(zdata, x_data, y_data, levels, properties)]
+
+    def normalize_surf_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[SurfaceSeries]:
+        """Normalize common MATLAB ``surf`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        x_data = None
+        y_data = None
+        cdata = None
+        if len(data_args) == 1:
+            zdata = self._image_cdata(data_args[0], "ZData")
+        elif len(data_args) == 3:
+            x_data = self._image_axis_vector(data_args[0], "x")
+            y_data = self._image_axis_vector(data_args[1], "y")
+            zdata = self._image_cdata(data_args[2], "ZData")
+        elif len(data_args) == 4:
+            x_data = self._image_axis_vector(data_args[0], "x")
+            y_data = self._image_axis_vector(data_args[1], "y")
+            zdata = self._image_cdata(data_args[2], "ZData")
+            cdata = self._image_cdata(data_args[3], "CData")
+        else:
+            raise ValueError("surf requires Z, X/Y/Z, or X/Y/Z/C arguments")
+        return [SurfaceSeries(zdata, x_data, y_data, cdata, properties)]
+
 
     def normalize_constant_line_args(
         self,
@@ -4931,6 +4997,17 @@ class MatlabLikeAxesBase:
         """Draw normalized filled contour series for the concrete backend."""
 
         raise NotImplementedError
+
+    def draw_surf_series(self, axes: Any, series: Sequence[SurfaceSeries]) -> list[Any]:
+        """Draw normalized surface series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_mesh_series(self, axes: Any, series: Sequence[SurfaceSeries]) -> list[Any]:
+        """Draw normalized mesh/wireframe series for the concrete backend."""
+
+        raise NotImplementedError
+
 
     def is_axes_handle(self, value: Any) -> bool:
         """Return whether ``value`` is a concrete backend axes object."""
