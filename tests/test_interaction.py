@@ -23,6 +23,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     AnnotationSeries,
+    RoseSeries,
     HeatmapSeries,
     ParetoSeries,
     PieSeries,
@@ -129,6 +130,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_pie_series = []
         self.drawn_pareto_series = []
         self.drawn_heatmap_series = []
+        self.drawn_rose_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -272,6 +274,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_heatmap_series(self, axes, series):
         self.drawn_heatmap_series.append((axes, tuple(series)))
         return [f"heatmap-{len(self.drawn_heatmap_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_rose_series(self, axes, series):
+        self.drawn_rose_series.append((axes, tuple(series)))
+        return [f"rose-{len(self.drawn_rose_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -551,6 +557,32 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 
 
+
+
+    def test_rose_normalizes_theta_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.rose([0.1, 0.5, 1.0, 2.0, 3.0])
+
+        self.assertEqual(artists, ["rose-1-0"])
+        _axes, series = plotter.drawn_rose_series[0]
+        self.assertEqual(len(series[0].theta), 5)
+
+    def test_rose_accepts_bins(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.rose([0.1, 0.5, 1.0], 10)
+
+        _axes, series = plotter.drawn_rose_series[0]
+        self.assertEqual(series[0].bins, 10)
+
+    def test_rose_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "theta"):
+            plotter.rose()
 
     def test_feather_normalizes_uv_and_runs_lifecycle(self):
         axes = FakeAxes()

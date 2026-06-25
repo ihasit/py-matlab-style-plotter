@@ -541,6 +541,25 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def draw_rose_series(self, axes: Any, series: list) -> list:
+        import numpy as np
+        artists = []
+        for item in series:
+            theta_arr = np.array(item.theta)
+            if isinstance(item.bins, int) or item.bins is None:
+                n_bins = item.bins if item.bins is not None else 20
+                bins = np.linspace(0, 2 * np.pi, n_bins + 1)
+            else:
+                bins = np.array(item.bins)
+            counts, bin_edges = np.histogram(theta_arr, bins=bins)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            width = bin_edges[1] - bin_edges[0]
+            created = axes.bar(bin_centers, counts, width=width, **dict(item.properties))
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

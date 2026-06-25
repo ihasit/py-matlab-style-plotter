@@ -503,6 +503,16 @@ class HeatmapSeries:
     properties: tuple[tuple[str, Any], ...] = ()
 
 
+
+@dataclass(frozen=True)
+class RoseSeries:
+    """One normalized MATLAB-like rose (angle histogram) series."""
+
+    theta: tuple[float, ...]
+    bins: int | tuple[float, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
 @dataclass(frozen=True)
 class QuiverSeries:
     """One normalized MATLAB-like quiver (vector field) series."""
@@ -1173,6 +1183,21 @@ class MatlabLikeAxesBase:
         self.prepare_for_plot(axes)
         series = [QuiverSeries(u, v, x, y, properties)]
         artists = self.draw_quiver_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+
+    def rose(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like rose diagram (angle histogram) on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_rose_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_rose_series(axes, series)
         self.after_plot(axes)
         return artists
 
@@ -2036,6 +2061,23 @@ class MatlabLikeAxesBase:
         if len(data_args) > 2:
             y_labels = tuple(str(v) for v in data_args[2])
         return [HeatmapSeries(cdata, x_labels, y_labels, properties)]
+
+
+    def normalize_rose_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[RoseSeries]:
+        """Normalize common MATLAB ``rose`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("rose requires theta data")
+        theta = self._numeric_vector(data_args[0], "rose theta")
+        bins = None
+        if len(data_args) > 1:
+            second = self._numeric_vector(data_args[1], "rose bins")
+            if len(second) == 1:
+                bins = int(second[0])
+            else:
+                bins = second
+        return [RoseSeries(theta, bins, properties)]
 
     def normalize_constant_line_args(
         self,
@@ -5747,6 +5789,13 @@ class MatlabLikeAxesBase:
 
     def draw_heatmap_series(self, axes: Any, series: Sequence[HeatmapSeries]) -> list[Any]:
         """Draw normalized heatmap series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+
+    def draw_rose_series(self, axes: Any, series: Sequence[RoseSeries]) -> list[Any]:
+        """Draw normalized rose (angle histogram) series for the concrete backend."""
 
         raise NotImplementedError
 
