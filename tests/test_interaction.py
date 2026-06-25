@@ -23,6 +23,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     AnnotationSeries,
+    HeatmapSeries,
     ParetoSeries,
     PieSeries,
     PolarSeries,
@@ -127,6 +128,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_polar_series = []
         self.drawn_pie_series = []
         self.drawn_pareto_series = []
+        self.drawn_heatmap_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -266,6 +268,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_pareto_series(self, axes, series):
         self.drawn_pareto_series.append((axes, tuple(series)))
         return [f"pareto-{len(self.drawn_pareto_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_heatmap_series(self, axes, series):
+        self.drawn_heatmap_series.append((axes, tuple(series)))
+        return [f"heatmap-{len(self.drawn_heatmap_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -543,6 +549,33 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 
 
+
+
+    def test_heatmap_normalizes_data_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.heatmap([[1, 2], [3, 4]])
+
+        self.assertEqual(artists, ["heatmap-1-0"])
+        _axes, series = plotter.drawn_heatmap_series[0]
+        self.assertEqual(series[0].data, ((1.0, 2.0), (3.0, 4.0)))
+
+    def test_heatmap_accepts_labels(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.heatmap([[1, 2], [3, 4]], ["X1", "X2"], ["Y1", "Y2"])
+
+        _axes, series = plotter.drawn_heatmap_series[0]
+        self.assertEqual(series[0].x_labels, ("X1", "X2"))
+        self.assertEqual(series[0].y_labels, ("Y1", "Y2"))
+
+    def test_heatmap_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "data matrix"):
+            plotter.heatmap()
 
     def test_pareto_normalizes_data_and_runs_lifecycle(self):
         axes = FakeAxes()

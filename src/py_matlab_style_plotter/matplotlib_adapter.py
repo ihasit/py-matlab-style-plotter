@@ -524,6 +524,23 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
+    def draw_heatmap_series(self, axes: Any, series: list) -> list:
+        import numpy as np
+        artists = []
+        for item in series:
+            data = np.array(item.data)
+            created = axes.imshow(data, cmap="viridis", aspect="auto")
+            if item.x_labels is not None:
+                axes.set_xticks(range(len(item.x_labels)))
+                axes.set_xticklabels(item.x_labels)
+            if item.y_labels is not None:
+                axes.set_yticks(range(len(item.y_labels)))
+                axes.set_yticklabels(item.y_labels)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

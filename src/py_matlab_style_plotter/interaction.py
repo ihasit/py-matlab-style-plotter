@@ -492,6 +492,17 @@ class ParetoSeries:
     properties: tuple[tuple[str, Any], ...] = ()
 
 
+
+@dataclass(frozen=True)
+class HeatmapSeries:
+    """One normalized MATLAB-like heatmap series."""
+
+    data: tuple[tuple[float, ...], ...]
+    x_labels: tuple[str, ...] | None = None
+    y_labels: tuple[str, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
 @dataclass(frozen=True)
 class QuiverSeries:
     """One normalized MATLAB-like quiver (vector field) series."""
@@ -1084,6 +1095,23 @@ class MatlabLikeAxesBase:
         series = self.normalize_pareto_args(args, kwargs)
         self.prepare_for_plot(axes)
         artists = self.draw_pareto_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
+
+    def heatmap(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like heatmap on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_heatmap_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_heatmap_series(axes, series)
+        if self.clim_mode == "auto":
+            self.autoscale_clim(axes)
         self.after_plot(axes)
         return artists
 
@@ -1931,6 +1959,22 @@ class MatlabLikeAxesBase:
         if len(data_args) > 1:
             labels = tuple(str(v) for v in data_args[1])
         return [ParetoSeries(values, labels, properties)]
+
+
+    def normalize_heatmap_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[HeatmapSeries]:
+        """Normalize common MATLAB ``heatmap`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("heatmap requires data matrix")
+        cdata = self._image_cdata(data_args[0], "heatmap data")
+        x_labels = None
+        y_labels = None
+        if len(data_args) > 1:
+            x_labels = tuple(str(v) for v in data_args[1])
+        if len(data_args) > 2:
+            y_labels = tuple(str(v) for v in data_args[2])
+        return [HeatmapSeries(cdata, x_labels, y_labels, properties)]
 
     def normalize_constant_line_args(
         self,
@@ -5635,6 +5679,13 @@ class MatlabLikeAxesBase:
 
     def draw_pareto_series(self, axes: Any, series: Sequence[ParetoSeries]) -> list[Any]:
         """Draw normalized Pareto chart series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+
+    def draw_heatmap_series(self, axes: Any, series: Sequence[HeatmapSeries]) -> list[Any]:
+        """Draw normalized heatmap series for the concrete backend."""
 
         raise NotImplementedError
 
