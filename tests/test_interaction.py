@@ -1925,6 +1925,27 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(series[0].cdata, ((5.0, 6.0), (7.0, 8.0)))
 
 
+
+    def test_ribbon_normalizes_z_and_runs_lifecycle(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.ribbon([[1, 2], [3, 4]])
+
+        self.assertEqual(artists, ["mesh-1-0"])
+        _axes, series = plotter.drawn_mesh_series[0]
+        self.assertEqual(series[0].zdata, ((1.0, 2.0), (3.0, 4.0)))
+
+    def test_ribbon_accepts_x_y_z(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = FakePlotter(axes)
+
+        artists = plotter.ribbon([10, 20], [30, 40], [[1, 2], [3, 4]])
+
+        _axes, series = plotter.drawn_mesh_series[0]
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+
     def test_waterfall_normalizes_z_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)
         plotter = FakePlotter(axes)

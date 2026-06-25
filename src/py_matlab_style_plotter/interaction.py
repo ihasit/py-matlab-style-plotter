@@ -1275,6 +1275,23 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+
+    def ribbon(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like ribbon plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_surf_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_mesh_series(axes, series)
+        if self.clim_mode == "auto":
+            self.autoscale_clim(axes)
+        self.after_plot(axes)
+        return artists
+
     def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scaled image data on an axes."""
 
