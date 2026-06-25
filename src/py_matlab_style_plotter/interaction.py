@@ -1013,6 +1013,23 @@ class MatlabLikeAxesBase:
         return artists
 
 
+
+    def contourf(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like filled contour plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_contour_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_contourf_series(axes, series)
+        if self.clim_mode == "auto":
+            self.autoscale_clim(axes)
+        self.after_plot(axes)
+        return artists
+
     def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scaled image data on an axes."""
 
@@ -4906,6 +4923,12 @@ class MatlabLikeAxesBase:
 
     def draw_contour_series(self, axes: Any, series: Sequence[ContourSeries]) -> list[Any]:
         """Draw normalized contour series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+    def draw_contourf_series(self, axes: Any, series: Sequence[ContourSeries]) -> list[Any]:
+        """Draw normalized filled contour series for the concrete backend."""
 
         raise NotImplementedError
 

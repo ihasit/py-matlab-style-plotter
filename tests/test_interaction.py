@@ -107,6 +107,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_constant_line_series = []
         self.drawn_text_series = []
         self.drawn_contour_series = []
+        self.drawn_contourf_series = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -197,6 +198,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_contour_series(self, axes, series):
         self.drawn_contour_series.append((axes, tuple(series)))
         return [f"contour-{len(self.drawn_contour_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_contourf_series(self, axes, series):
+        self.drawn_contourf_series.append((axes, tuple(series)))
+        return [f"contourf-{len(self.drawn_contourf_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -1663,6 +1668,30 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.contour([[1, 2], [3, 4]])
 
         self.assertEqual(axes.autoscale_clim_calls, 0)
+
+
+    def test_contourf_normalizes_z_and_runs_plot_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.contourf([[1, 2], [3, 4]])
+
+        self.assertEqual(artists, ["contourf-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_contourf_series[0]
+        self.assertEqual(series[0].zdata, ((1.0, 2.0), (3.0, 4.0)))
+        self.assertIsNone(series[0].levels)
+
+    def test_contourf_accepts_x_y_z_and_levels(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.contourf([10, 20], [30, 40], [[1, 2], [3, 4]], [1.5, 2.5])
+
+        _axes, series = plotter.drawn_contourf_series[0]
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+        self.assertEqual(series[0].levels, (1.5, 2.5))
 
     def test_contour_validates_arguments(self):
         plotter = FakePlotter(FakeAxes())

@@ -272,6 +272,7 @@ class FakeAxes:
         self.text_calls = []
         self.imshow_calls = []
         self.contour_calls = []
+        self.contourf_calls = []
         self.relim_count = 0
         self.autoscale_view_calls = []
         self.spines = (
@@ -429,6 +430,13 @@ class FakeAxes:
         contour_artist.kwargs = kwargs
         self.contour_calls.append((args, kwargs))
         return contour_artist
+
+    def contourf(self, *args, **kwargs):
+        contourf_artist = FakeMappable()
+        contourf_artist.args = args
+        contourf_artist.kwargs = kwargs
+        self.contourf_calls.append((args, kwargs))
+        return contourf_artist
 
     def autoscale_view(self, tight=False):
         self.autoscale_view_calls.append(tight)
@@ -997,6 +1005,18 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(args, ((10.0, 20.0), (30.0, 40.0), ((1.0, 2.0), (3.0, 4.0)),))
         self.assertEqual(kwargs.get("label"), "contour1")
 
+
+    def test_contourf_draws_filled_contour_through_matplotlib_axes(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.contourf([10, 20], [30, 40], [[1, 2], [3, 4]], "DisplayName", "contourf1")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(len(axes.contourf_calls), 1)
+        args, kwargs = axes.contourf_calls[0]
+        self.assertEqual(args, ((10.0, 20.0), (30.0, 40.0), ((1.0, 2.0), (3.0, 4.0)),))
+        self.assertEqual(kwargs.get("label"), "contourf1")
     def test_plot_line_spec_properties_are_overridden_by_name_value(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)

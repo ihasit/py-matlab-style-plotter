@@ -276,6 +276,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
+
+    def draw_contourf_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            if item.x is not None and item.y is not None:
+                created = axes.contourf(item.x, item.y, item.zdata, **kwargs)
+            else:
+                created = axes.contourf(item.zdata, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 
