@@ -34,6 +34,7 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `text(...)` annotation helper for 2D/3D axes text with positional axes, Name/Value properties, and primitive-style lifecycle behavior
 - MATLAB-style `imagesc(...)` command template for scaled image CData with optional x/y endpoints, color-limit autoscaling, and shared plot lifecycle behavior
 - MATLAB-style `colormap(...)` helper for querying or setting per-axes named colormaps or N-by-3 RGB colormap matrices
+- MATLAB-style `contour(...)` command template for contour plots with Z matrix, optional X/Y coordinates, optional level count or level vector, and shared plot lifecycle behavior
 - MATLAB-style `semilogx(...)`, `semilogy(...)`, and `loglog(...)` wrappers that reuse the base `plot(...)` lifecycle and set x/y axis scales
 - MATLAB-style default `ColorOrder`, `LineStyleOrder`, and per-axes `NextSeriesIndex` handling for plotted lines, with `replace` resetting the cycle and `hold on` continuing it
 - MATLAB-style `colororder(...)`, `linestyleorder(...)`, and `nextseriesindex(...)` helpers for querying and setting per-axes series-order state
@@ -162,6 +163,7 @@ delegating to `draw_image_series(...)`.
 are normalized to lowercase, and numeric maps use MATLAB-like N-by-3 RGB rows
 with values in `[0, 1]`. The Matplotlib adapter applies the selected colormap
 to existing images and collections on the target axes.
+`contour(...)` normalizes `contour(Z)`, `contour(Z, n)`, `contour(X, Y, Z)`, and `contour(X, Y, Z, v)` forms into backend-neutral `ContourSeries` records. It accepts numeric matrix ZData, optional X/Y coordinate vectors, an optional scalar level count or explicit level vector, Name/Value properties, `NextPlot` lifecycle behavior, and autoscaled color limits when `clim` mode is `auto`, before delegating to `draw_contour_series(...)`.
 `line(...)` adds explicit 2D or 3D line primitives directly to the target axes:
 it accepts MATLAB Name/Value properties and positional axes handles, but unlike
 `plot(...)` it does not apply `NextPlot` clearing or default series-order

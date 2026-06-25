@@ -9,6 +9,7 @@ from py_matlab_style_plotter import (
     BoxAspectMode,
     Camera3DState,
     ConstantLineSeries,
+    ContourSeries,
     ErrorBarSeries,
     FillSeries,
     HistogramSeries,
@@ -105,6 +106,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_histogram_series = []
         self.drawn_constant_line_series = []
         self.drawn_text_series = []
+        self.drawn_contour_series = []
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -191,6 +193,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_text_series(self, axes, series):
         self.drawn_text_series.append((axes, tuple(series)))
         return [f"text-{len(self.drawn_text_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_contour_series(self, axes, series):
+        self.drawn_contour_series.append((axes, tuple(series)))
+        return [f"contour-{len(self.drawn_contour_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_image_series(self, axes, series):
         self.drawn_image_series.append((axes, tuple(series)))
@@ -1618,6 +1624,53 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             plotter.imagesc([])
         with self.assertRaisesRegex(ValueError, "two axis endpoints"):
             plotter.imagesc([1, 2, 3], [1, 2], [[1, 2], [3, 4]])
+
+    def test_contour_normalizes_z_and_runs_plot_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.contour([[1, 2], [3, 4]])
+
+        self.assertEqual(artists, ["contour-1-0"])
+        self.assertEqual(axes.clear_calls, [True])
+        _axes, series = plotter.drawn_contour_series[0]
+        self.assertEqual(series[0].zdata, ((1.0, 2.0), (3.0, 4.0)))
+        self.assertIsNone(series[0].x)
+        self.assertIsNone(series[0].y)
+        self.assertIsNone(series[0].levels)
+        self.assertEqual(axes.autoscale_clim_calls, 1)
+
+    def test_contour_accepts_x_y_z_and_levels(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.contour([10, 20], [30, 40], [[1, 2], [3, 4]], [1.5, 2.5])
+
+        self.assertEqual(artists, ["contour-1-0"])
+        _axes, series = plotter.drawn_contour_series[0]
+        self.assertEqual(series[0].x, (10.0, 20.0))
+        self.assertEqual(series[0].y, (30.0, 40.0))
+        self.assertEqual(series[0].zdata, ((1.0, 2.0), (3.0, 4.0)))
+        self.assertEqual(series[0].levels, (1.5, 2.5))
+
+    def test_contour_does_not_autoscale_clim_in_manual_mode(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+        plotter.clim("manual")
+        plotter.hold("on")
+        axes.autoscale_clim_calls = 0
+
+        plotter.contour([[1, 2], [3, 4]])
+
+        self.assertEqual(axes.autoscale_clim_calls, 0)
+
+    def test_contour_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "nonempty"):
+            plotter.contour([])
+        with self.assertRaisesRegex(ValueError, "contour requires"):
+            plotter.contour([1, 2], [3, 4], [5, 6], [7, 8], [9, 10])
 
     def test_plot3_normalizes_xyz_series_and_runs_lifecycle(self):
         axes = FakeAxes(is_3d=True)
