@@ -971,6 +971,19 @@ class MatlabLikeAxesBase:
         self.prepare_for_plot(axes)
         return axes
 
+
+    def drawnow(self) -> None:
+        """Flush pending graphics updates, like MATLAB ``drawnow``."""
+
+        axes = self.active_axes
+        if axes is not None:
+            self._flush_graphics(axes)
+
+    def _flush_graphics(self, axes: Any) -> None:
+        """Flush graphics for a concrete backend. Backends override this."""
+
+        pass
+
     def plot(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 2D line series on an axes.
 

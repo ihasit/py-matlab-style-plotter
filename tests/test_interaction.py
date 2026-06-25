@@ -123,6 +123,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.property_queries = []
         self.child_objects = []
         self.copied_artists = []
+        self.flush_calls = 0
         self.drawn_image_series = []
         self.view_history_changes = []
         self.block_tool_presses = False
@@ -255,6 +256,9 @@ class FakePlotter(MatlabLikeAxesBase):
     def copy_artist(self, artist, target):
         self.copied_artists.append((artist, target))
         return f"copy-of-{getattr(artist, 'name', id(artist))}"
+
+    def _flush_graphics(self, axes):
+        self.flush_calls += 1
 
     def get_artist_property(self, artist, name):
         self.property_queries.append((artist, name))
@@ -500,6 +504,19 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         artist = FakeArtist()
         plotter.delete(artist)
         self.assertIn(artist, plotter.deleted_artists)
+
+
+    def test_drawnow_flushes_graphics_for_active_axes(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.drawnow()
+        self.assertEqual(plotter.flush_calls, 1)
+
+    def test_drawnow_noop_without_active_axes(self):
+        plotter = FakePlotter(None)
+
+        plotter.drawnow()
 
     def test_subplot_creates_and_reuses_axes_in_grid(self):
         axes = FakeAxes()
