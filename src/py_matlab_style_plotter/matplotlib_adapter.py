@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any
 
+import numpy as np
+
 from .interaction import (
     AreaSeries,
     AspectMode,
@@ -296,14 +298,12 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if item.cdata is not None:
                 kwargs.setdefault("cmap", None)
             if item.x is not None and item.y is not None:
-                import numpy as np
                 x_arr = np.array(item.x)
                 y_arr = np.array(item.y)
                 z_arr = np.array(item.zdata)
                 x_grid, y_grid = np.meshgrid(x_arr, y_arr)
                 created = axes.plot_surface(x_grid, y_grid, z_arr, **kwargs)
             else:
-                import numpy as np
                 z_arr = np.array(item.zdata)
                 y_grid, x_grid = np.mgrid[0:z_arr.shape[0], 0:z_arr.shape[1]]
                 created = axes.plot_surface(x_grid, y_grid, z_arr, **kwargs)
@@ -317,14 +317,12 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             kwargs = dict(item.properties)
             kwargs.setdefault("edgecolor", kwargs.pop("edge_color", "k"))
             if item.x is not None and item.y is not None:
-                import numpy as np
                 x_arr = np.array(item.x)
                 y_arr = np.array(item.y)
                 z_arr = np.array(item.zdata)
                 x_grid, y_grid = np.meshgrid(x_arr, y_arr)
                 created = axes.plot_wireframe(x_grid, y_grid, z_arr, **kwargs)
             else:
-                import numpy as np
                 z_arr = np.array(item.zdata)
                 y_grid, x_grid = np.mgrid[0:z_arr.shape[0], 0:z_arr.shape[1]]
                 created = axes.plot_wireframe(x_grid, y_grid, z_arr, **kwargs)
@@ -340,7 +338,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if item.x is not None and item.y is not None:
                 created = axes.quiver(item.x, item.y, item.u, item.v, **kwargs)
             else:
-                import numpy as np
                 y_grid, x_grid = np.mgrid[0:len(item.u), 0:len(item.u[0]) if item.u else 0]
                 created = axes.quiver(x_grid, y_grid, item.u, item.v, **kwargs)
             artists.append(created)
@@ -412,7 +409,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         artists = []
         for item in series:
             kwargs = dict(item.properties)
-            import numpy as np
             matrix = np.zeros((item.nrows, item.ncols))
             for r, c in zip(item.row_indices, item.col_indices):
                 matrix[r, c] = 1
@@ -475,7 +471,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
 
     def draw_polar_series(self, axes: Any, series: list) -> list:
-        import numpy as np
         artists = []
         for item in series:
             theta_arr = np.array(item.theta)
@@ -503,7 +498,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
 
     def draw_pareto_series(self, axes: Any, series: list[Any]) -> list[Any]:
-        import numpy as np
         artists = []
         for item in series:
             data = np.array(item.data)
@@ -525,7 +519,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
 
     def draw_heatmap_series(self, axes: Any, series: list[Any]) -> list[Any]:
-        import numpy as np
         artists = []
         for item in series:
             data = np.array(item.data)
@@ -542,7 +535,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
 
     def draw_rose_series(self, axes: Any, series: list[Any]) -> list[Any]:
-        import numpy as np
         artists = []
         for item in series:
             theta_arr = np.array(item.theta)
