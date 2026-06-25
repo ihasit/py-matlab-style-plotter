@@ -22,6 +22,7 @@ from py_matlab_style_plotter import (
     Plot3Series,
     PlotSeries,
     PointerEvent,
+    AnnotationSeries,
     SpySeries,
     ScatterSeries,
     SurfaceSeries,
@@ -117,6 +118,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_quiver_series = []
         self.drawn_pcolor_series = []
         self.drawn_spy_series = []
+        self.drawn_annotation_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -238,6 +240,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_spy_series(self, axes, series):
         self.drawn_spy_series.append((axes, tuple(series)))
         return [f"spy-{len(self.drawn_spy_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_annotation_series(self, axes, series):
+        self.drawn_annotation_series.append((axes, tuple(series)))
+        return [f"annotation-{len(self.drawn_annotation_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -505,6 +511,50 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.delete(artist)
         self.assertIn(artist, plotter.deleted_artists)
 
+
+
+    def test_annotation_line_creates_line_series(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.annotation("line", [0.1, 0.9], [0.2, 0.8])
+
+        _axes, series = plotter.drawn_annotation_series[0]
+        self.assertEqual(series[0].annotation_type, "line")
+        self.assertEqual(series[0].position, (0.1, 0.2, 0.9, 0.8))
+
+    def test_annotation_textarrow_creates_textarrow_series(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.annotation("textarrow", [0.1, 0.5], [0.2, 0.6], "hello")
+
+        _axes, series = plotter.drawn_annotation_series[0]
+        self.assertEqual(series[0].annotation_type, "textarrow")
+        self.assertEqual(series[0].text, "hello")
+
+    def test_annotation_textbox_creates_textbox_series(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.annotation("textbox", [0.1, 0.2, 0.3, 0.1], "note")
+
+        _axes, series = plotter.drawn_annotation_series[0]
+        self.assertEqual(series[0].annotation_type, "textbox")
+        self.assertEqual(series[0].position, (0.1, 0.2, 0.3, 0.1))
+        self.assertEqual(series[0].text, "note")
+
+    def test_annotation_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "at least an annotation type"):
+            plotter.annotation()
+        with self.assertRaisesRegex(ValueError, "Unsupported annotation type"):
+            plotter.annotation("bad")
+        with self.assertRaisesRegex(ValueError, "2-element x and y"):
+            plotter.annotation("line", [0.1], [0.2])
+        with self.assertRaisesRegex(ValueError, "position vector"):
+            plotter.annotation("textbox")
 
     def test_drawnow_flushes_graphics_for_active_axes(self):
         axes = FakeAxes()

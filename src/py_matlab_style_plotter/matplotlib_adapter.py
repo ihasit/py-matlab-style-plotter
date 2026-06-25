@@ -426,6 +426,45 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
 
 
+    def draw_annotation_series(self, axes: Any, series: list) -> list:
+        artists = []
+        for item in series:
+            kwargs = dict(item.properties)
+            if item.annotation_type == "line":
+                from matplotlib.lines import Line2D
+                line = Line2D([item.position[0], item.position[2]], [item.position[1], item.position[3]], transform=axes.figure.transFigure, **kwargs)
+                axes.figure.patches.append(line)
+                artists.append(line)
+            elif item.annotation_type == "arrow":
+                from matplotlib.patches import FancyArrowPatch
+                arrow = FancyArrowPatch((item.position[0], item.position[1]), (item.position[2], item.position[3]), transform=axes.figure.transFigure, **kwargs)
+                axes.figure.patches.append(arrow)
+                artists.append(arrow)
+            elif item.annotation_type == "textarrow":
+                from matplotlib.patches import FancyArrowPatch
+                from matplotlib.text import Annotation
+                arrow = FancyArrowPatch((item.position[2], item.position[3]), (item.position[0], item.position[1]), transform=axes.figure.transFigure, **kwargs)
+                axes.figure.patches.append(arrow)
+                if item.text:
+                    ann = Annotation(item.text, (item.position[0], item.position[1]), transform=axes.figure.transFigure, **kwargs)
+                    axes.figure.patches.append(ann)
+                    artists.append(ann)
+                artists.append(arrow)
+            elif item.annotation_type in ("textbox", "ellipse", "rectangle"):
+                from matplotlib.patches import Rectangle, Ellipse
+                x, y, w, h = item.position
+                if item.annotation_type == "textbox":
+                    patch = Rectangle((x, y), w, h, transform=axes.figure.transFigure, fill=False, **kwargs)
+                elif item.annotation_type == "ellipse":
+                    patch = Ellipse((x + w/2, y + h/2), w, h, transform=axes.figure.transFigure, **kwargs)
+                else:
+                    patch = Rectangle((x, y), w, h, transform=axes.figure.transFigure, **kwargs)
+                axes.figure.patches.append(patch)
+                artists.append(patch)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

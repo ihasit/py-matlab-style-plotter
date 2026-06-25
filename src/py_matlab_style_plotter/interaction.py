@@ -445,6 +445,16 @@ class SpySeries:
 
 
 @dataclass(frozen=True)
+class AnnotationSeries:
+    """One normalized MATLAB-like annotation series."""
+
+    annotation_type: str
+    position: tuple[float, ...]
+    text: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class QuiverSeries:
     """One normalized MATLAB-like quiver (vector field) series."""
 
@@ -962,6 +972,20 @@ class MatlabLikeAxesBase:
 
         target = parent if parent is not None else self.require_active_axes()
         return self.copy_artist(handle, target)
+
+    def annotation(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like figure annotation (line, arrow, textarrow, textbox, ellipse, rectangle)."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_annotation_args(args, kwargs)
+        artists = self.draw_annotation_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
 
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
@@ -1712,6 +1736,51 @@ class MatlabLikeAxesBase:
                     row_indices.append(0)
                     col_indices.append(r)
         return [SpySeries(tuple(row_indices), tuple(col_indices), nrows, ncols, properties)]
+
+
+    def normalize_annotation_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[AnnotationSeries]:
+        """Normalize common MATLAB ``annotation`` calling forms."""
+
+        if not args:
+            raise ValueError("annotation requires at least an annotation type")
+        ann_type = str(args[0]).strip().lower()
+        data_args = args[1:]
+        _, properties = self._split_plot_args_and_properties((), kwargs)
+        if ann_type == "line":
+            if len(data_args) != 2:
+                raise ValueError("annotation line requires x and y endpoints")
+            x = self._numeric_vector(data_args[0], "annotation x")
+            y = self._numeric_vector(data_args[1], "annotation y")
+            if len(x) != 2 or len(y) != 2:
+                raise ValueError("annotation line requires 2-element x and y")
+            return [AnnotationSeries("line", (x[0], y[0], x[1], y[1]), properties=properties)]
+        elif ann_type == "arrow":
+            if len(data_args) != 2:
+                raise ValueError("annotation arrow requires x and y endpoints")
+            x = self._numeric_vector(data_args[0], "annotation x")
+            y = self._numeric_vector(data_args[1], "annotation y")
+            if len(x) != 2 or len(y) != 2:
+                raise ValueError("annotation arrow requires 2-element x and y")
+            return [AnnotationSeries("arrow", (x[0], y[0], x[1], y[1]), properties=properties)]
+        elif ann_type == "textarrow":
+            if len(data_args) < 2:
+                raise ValueError("annotation textarrow requires x and y endpoints")
+            x = self._numeric_vector(data_args[0], "annotation x")
+            y = self._numeric_vector(data_args[1], "annotation y")
+            if len(x) != 2 or len(y) != 2:
+                raise ValueError("annotation textarrow requires 2-element x and y")
+            text = str(data_args[2]) if len(data_args) > 2 else None
+            return [AnnotationSeries("textarrow", (x[0], y[0], x[1], y[1]), text=text, properties=properties)]
+        elif ann_type in ("textbox", "ellipse", "rectangle"):
+            if len(data_args) < 1:
+                raise ValueError(f"annotation {ann_type} requires a position vector")
+            pos = self._numeric_vector(data_args[0], "annotation position")
+            if len(pos) != 4:
+                raise ValueError(f"annotation {ann_type} requires [x y w h]")
+            text = str(data_args[1]) if len(data_args) > 1 else None
+            return [AnnotationSeries(ann_type, tuple(pos), text=text, properties=properties)]
+        else:
+            raise ValueError(f"Unsupported annotation type: {ann_type!r}")
 
 
     def normalize_constant_line_args(
@@ -5345,6 +5414,12 @@ class MatlabLikeAxesBase:
 
     def draw_spy_series(self, axes: Any, series: Sequence[SpySeries]) -> list[Any]:
         """Draw normalized spy (sparsity pattern) series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+    def draw_annotation_series(self, axes: Any, series: Sequence[AnnotationSeries]) -> list[Any]:
+        """Draw normalized annotation series for the concrete backend."""
 
         raise NotImplementedError
 
