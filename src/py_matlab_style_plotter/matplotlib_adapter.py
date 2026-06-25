@@ -474,6 +474,22 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes._yyaxis_active = "left"
 
 
+    def draw_polar_series(self, axes: Any, series: list) -> list:
+        import numpy as np
+        artists = []
+        for item in series:
+            theta_arr = np.array(item.theta)
+            rho_arr = np.array(item.rho)
+            kwargs = dict(item.properties)
+            if item.line_spec:
+                for key, val in item.line_spec:
+                    kwargs.setdefault(key, val)
+            created = axes.plot(theta_arr, rho_arr, **kwargs)
+            artists.extend(created)
+        self._draw_idle(axes)
+        return artists
+
+
     def is_axes_handle(self, value: Any) -> bool:
         return all(hasattr(value, name) for name in ("plot", "get_xlim", "get_ylim"))
 

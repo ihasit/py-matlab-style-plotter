@@ -23,6 +23,7 @@ from py_matlab_style_plotter import (
     PlotSeries,
     PointerEvent,
     AnnotationSeries,
+    PolarSeries,
     SpySeries,
     ScatterSeries,
     SurfaceSeries,
@@ -121,6 +122,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_pcolor_series = []
         self.drawn_spy_series = []
         self.drawn_annotation_series = []
+        self.drawn_polar_series = []
         self.created_subplot_axes = []
         self.deleted_artists = []
         self.property_changes = []
@@ -248,6 +250,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_annotation_series(self, axes, series):
         self.drawn_annotation_series.append((axes, tuple(series)))
         return [f"annotation-{len(self.drawn_annotation_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_polar_series(self, axes, series):
+        self.drawn_polar_series.append((axes, tuple(series)))
+        return [f"polar-{len(self.drawn_polar_series)}-{index}" for index, _item in enumerate(series)]
 
     def create_subplot_axes(self, rows, columns, position):
         axes = FakeAxes(f"subplot-{rows}x{columns}-{position}")
@@ -522,6 +528,34 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertIn(artist, plotter.deleted_artists)
 
 
+
+
+    def test_polarplot_normalizes_theta_rho_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.polarplot([0, 1.57, 3.14], [1, 2, 1])
+
+        self.assertEqual(artists, ["polar-1-0"])
+        _axes, series = plotter.drawn_polar_series[0]
+        self.assertEqual(len(series[0].theta), 3)
+        self.assertEqual(len(series[0].rho), 3)
+
+    def test_polarplot_accepts_theta_only(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.polarplot([1, 2, 3])
+
+        _axes, series = plotter.drawn_polar_series[0]
+        self.assertEqual(series[0].rho, (1.0, 2.0, 3.0))
+        self.assertEqual(series[0].theta, (0.0, 1.0, 2.0))
+
+    def test_polarplot_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "theta"):
+            plotter.polarplot()
 
     def test_annotation_line_creates_line_series(self):
         axes = FakeAxes()

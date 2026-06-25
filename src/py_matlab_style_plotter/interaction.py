@@ -460,6 +460,18 @@ class AnnotationSeries:
     properties: tuple[tuple[str, Any], ...] = ()
 
 
+
+@dataclass(frozen=True)
+class PolarSeries:
+    """One normalized MATLAB-like polar plot series."""
+
+    theta: tuple[float, ...]
+    rho: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
 @dataclass(frozen=True)
 class QuiverSeries:
     """One normalized MATLAB-like quiver (vector field) series."""
@@ -1009,6 +1021,21 @@ class MatlabLikeAxesBase:
         if axes is not None:
             self.set_color_scheme(axes, normalized)
         return normalized
+
+
+    def polarplot(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like polar plot on an axes."""
+
+        if axes is None and args and self.is_axes_handle(args[0]):
+            axes = args[0]
+            args = args[1:]
+        axes = axes if axes is not None else self.require_active_axes()
+        self.set_active_axes(axes)
+        series = self.normalize_polar_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_polar_series(axes, series)
+        self.after_plot(axes)
+        return artists
 
     def newplot(self, axes: Any | None = None) -> Any:
         """Prepare an axes for a new high-level plot and return that axes."""
@@ -1805,6 +1832,29 @@ class MatlabLikeAxesBase:
         else:
             raise ValueError(f"Unsupported annotation type: {ann_type!r}")
 
+
+
+    def normalize_polar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PolarSeries]:
+        """Normalize common MATLAB ``polarplot`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("polarplot requires at least theta data")
+        style = None
+        if data_args and isinstance(data_args[-1], str):
+            style = data_args[-1]
+            data_args = data_args[:-1]
+        if len(data_args) == 1:
+            theta = self._numeric_vector(data_args[0], "theta")
+            rho = theta
+            theta = tuple(float(i) for i in range(len(theta)))
+        elif len(data_args) == 2:
+            theta = self._numeric_vector(data_args[0], "theta")
+            rho = self._numeric_vector(data_args[1], "rho")
+        else:
+            raise ValueError("polarplot requires theta or theta/rho arguments")
+        line_spec = self._parse_line_spec(style) if style else ()
+        return [PolarSeries(theta, rho, style, properties, line_spec)]
 
     def normalize_constant_line_args(
         self,
@@ -5488,6 +5538,13 @@ class MatlabLikeAxesBase:
 
     def draw_annotation_series(self, axes: Any, series: Sequence[AnnotationSeries]) -> list[Any]:
         """Draw normalized annotation series for the concrete backend."""
+
+        raise NotImplementedError
+
+
+
+    def draw_polar_series(self, axes: Any, series: Sequence[PolarSeries]) -> list[Any]:
+        """Draw normalized polar series for the concrete backend."""
 
         raise NotImplementedError
 
