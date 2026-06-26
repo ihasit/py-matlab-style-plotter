@@ -76,6 +76,8 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style axes appearance helpers with `layer`, `tickdir`, `tickdirmode`, `ticklength`, `xaxislocation`, and `yaxislocation`
 - MATLAB-style per-axis grid helpers with `xgrid`, `ygrid`, `zgrid`, `xminorgrid`, `yminorgrid`, and `zminorgrid`
 - MATLAB-style per-axis minor tick helpers with `xminortick`, `yminortick`, and `zminortick`
+- MATLAB-style `fontname()`, `fontsize()`, `fontweight()`, and `fontangle()` axes font property query/setters
+- MATLAB-style `color()`, `xcolor()`, `ycolor()`, and `zcolor()` axes color property query/setters
 - MATLAB-style tick helpers with `xticks`, `yticks`, and `zticks` supporting current tick queries, increasing finite tick vectors, empty ticks, `auto`, `manual`, and `mode`
 - MATLAB-style tick label helpers with `xticklabels`, `yticklabels`, `zticklabels`, and tick-label rotation helpers, including empty labels, automatic padding, `auto`, `manual`, and `mode`
 - MATLAB-style text helpers with `title`, `xlabel`, `ylabel`, and `zlabel` storing single-line or multi-line text in view history
