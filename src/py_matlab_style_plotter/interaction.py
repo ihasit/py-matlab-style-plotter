@@ -242,6 +242,14 @@ class AxesUIState:
     color_order: tuple[tuple[float, float, float], ...] = ()
     line_style_order: tuple[str, ...] = ()
     next_series_index: int = 0
+    font_name: str = ""
+    font_size: float = 10.0
+    font_weight: str = "normal"
+    font_angle: str = "normal"
+    axes_color: Any = None
+    x_color: Any = None
+    y_color: Any = None
+    z_color: Any = None
 
 
 @dataclass(frozen=True)
@@ -1634,6 +1642,38 @@ class MatlabLikeAxesBase:
             self._save_axes_ui_state(axes)
             self.push_current_view(axes)
         return artists
+
+    def fontname(self, value: str | None = None) -> str | None:
+        """MATLAB-like font name query/setter."""
+        if value is None:
+            return self.font_name
+        self.font_name = str(value)
+        return None
+
+    def fontsize(self, value: float | str | None = None) -> float | None:
+        """MATLAB-like font size query/setter."""
+        if value is None:
+            return self.font_size
+        self.font_size = float(value)
+        return None
+
+    def fontweight(self, value: str | None = None) -> str | None:
+        """MATLAB-like font weight query/setter."""
+        if value is None:
+            return self.font_weight
+        if value not in {"normal", "bold"}:
+            raise ValueError(f"fontweight must be 'normal' or 'bold', got {value!r}")
+        self.font_weight = value
+        return None
+
+    def fontangle(self, value: str | None = None) -> str | None:
+        """MATLAB-like font angle query/setter."""
+        if value is None:
+            return self.font_angle
+        if value not in {"normal", "italic"}:
+            raise ValueError(f"fontangle must be 'normal' or 'italic', got {value!r}")
+        self.font_angle = value
+        return None
 
     def colororder(
         self,

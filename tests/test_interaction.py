@@ -6385,3 +6385,38 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_fontname_query_and_set(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        self.assertEqual(plotter.fontname(), "")
+        plotter.fontname("Arial")
+        self.assertEqual(plotter.fontname(), "Arial")
+
+    def test_fontsize_query_and_set(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        self.assertEqual(plotter.fontsize(), 10.0)
+        plotter.fontsize(14)
+        self.assertEqual(plotter.fontsize(), 14.0)
+
+    def test_fontweight_validates(self):
+        plotter = FakePlotter(FakeAxes())
+
+        plotter.fontweight("bold")
+        self.assertEqual(plotter.fontweight(), "bold")
+
+        with self.assertRaisesRegex(ValueError, "fontweight"):
+            plotter.fontweight("invalid")
+
+    def test_fontangle_validates(self):
+        plotter = FakePlotter(FakeAxes())
+
+        plotter.fontangle("italic")
+        self.assertEqual(plotter.fontangle(), "italic")
+
+        with self.assertRaisesRegex(ValueError, "fontangle"):
+            plotter.fontangle("invalid")
+
