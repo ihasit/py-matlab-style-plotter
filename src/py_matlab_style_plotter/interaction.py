@@ -2524,18 +2524,31 @@ class MatlabLikeAxesBase:
                     line_spec,
                 )
             )
-        state.color_order = color_order
-        state.line_style_order = line_style_order
-        state.next_series_index = next_index
-        self._axes_ui_state[axes] = state
-        if axes is self.active_axes:
-            self.color_order = color_order
-            self.line_style_order = line_style_order
-            self.next_series_index = next_index
+        self._commit_series_order_state(axes, state, color_order, next_index, line_style_order)
         return ordered
 
     def _series_has_property(self, series: PlotSeries, property_name: str) -> bool:
         return any(name == property_name for name, _value in (*series.line_spec, *series.properties))
+
+    def _commit_series_order_state(
+        self,
+        axes: Any,
+        state: Any,
+        color_order: tuple[Any, ...],
+        next_index: int,
+        line_style_order: tuple[str, ...] | None = None,
+    ) -> None:
+        """Persist updated series-order state back to axes UI state and active axes."""
+        state.color_order = color_order
+        state.next_series_index = next_index
+        if line_style_order is not None:
+            state.line_style_order = line_style_order
+        self._axes_ui_state[axes] = state
+        if axes is self.active_axes:
+            self.color_order = color_order
+            self.next_series_index = next_index
+            if line_style_order is not None:
+                self.line_style_order = line_style_order
 
     def _apply_proxy_series_order(
         self,
@@ -2576,12 +2589,7 @@ class MatlabLikeAxesBase:
                 line_spec = (*line_spec, ("color", color_order[next_index % len(color_order)]))
                 next_index += 1
             ordered.append(ScatterSeries(item.x, item.y, item.size, item.color, item.properties, line_spec))
-        state.color_order = color_order
-        state.next_series_index = next_index
-        self._axes_ui_state[axes] = state
-        if axes is self.active_axes:
-            self.color_order = color_order
-            self.next_series_index = next_index
+        self._commit_series_order_state(axes, state, color_order, next_index)
         return ordered
 
     def _apply_stem_series_order(self, axes: Any, series: list[StemSeries]) -> list[StemSeries]:
@@ -2618,12 +2626,7 @@ class MatlabLikeAxesBase:
                 line_spec = (*line_spec, ("facecolor", color_order[next_index % len(color_order)]))
                 next_index += 1
             ordered.append(FillSeries(item.x, item.y, item.color, item.properties, line_spec))
-        state.color_order = color_order
-        state.next_series_index = next_index
-        self._axes_ui_state[axes] = state
-        if axes is self.active_axes:
-            self.color_order = color_order
-            self.next_series_index = next_index
+        self._commit_series_order_state(axes, state, color_order, next_index)
         return ordered
 
     def _apply_histogram_series_order(self, axes: Any, series: list[HistogramSeries]) -> list[HistogramSeries]:
@@ -2637,12 +2640,7 @@ class MatlabLikeAxesBase:
                 line_spec = (*line_spec, ("facecolor", color_order[next_index % len(color_order)]))
                 next_index += 1
             ordered.append(HistogramSeries(item.values, item.bins, item.properties, line_spec))
-        state.color_order = color_order
-        state.next_series_index = next_index
-        self._axes_ui_state[axes] = state
-        if axes is self.active_axes:
-            self.color_order = color_order
-            self.next_series_index = next_index
+        self._commit_series_order_state(axes, state, color_order, next_index)
         return ordered
 
     def _parse_line_spec(self, style: str | None) -> tuple[tuple[str, Any], ...]:
