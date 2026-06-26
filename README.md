@@ -53,6 +53,10 @@ The first iteration focuses on axes UI behavior rather than drawing syntax:
 - MATLAB-style `heatmap(data, x_labels, y_labels)`
 - MATLAB-style `feather(U, V)` and `compass(U, V)`
 - MATLAB-style `rose(theta, bins)` command template for angle histograms with optional bin count and shared plot lifecycle behavior
+- MATLAB-style `barh(x, y)` horizontal bar chart command template with shared bar parsing, LineSpec, series-order, and lifecycle behavior
+- MATLAB-style `scatter3(x, y, z)` 3D scatter command template with optional marker size, color, and shared plot lifecycle behavior
+- MATLAB-style `stem3(x, y, z)` 3D stem command template with shared plot lifecycle behavior
+- MATLAB-style `polarhistogram(theta, bins)` polar histogram command template with optional bin count and shared plot lifecycle behavior
 - MATLAB-style `spy(...)` command template for visualizing matrix sparsity patterns with shared plot lifecycle behavior
 - MATLAB-style `annotation(type, ...)` helpers for figure-level annotations including `line`, `arrow`, `textarrow`, `textbox`, `ellipse`, and `rectangle`
 - MATLAB-like `delete(handle)` helper for removing graphics handles, cleaning up active-axes state, subplot cache, and view history
