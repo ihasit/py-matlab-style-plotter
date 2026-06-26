@@ -4366,17 +4366,12 @@ class MatlabLikeAxesBase:
             next_series_index=self.next_series_index,
         )
 
-    def _load_axes_ui_state(self, axes: Any | None) -> None:
-        state = self._axes_ui_state.get(axes) if axes is not None else None
-        if state is None:
-            state = AxesUIState()
-            if axes is not None:
-                self._axes_ui_state[axes] = state
+    def _apply_state_properties(self, state: ViewState | AxesUIState) -> None:
+        """Restore shared scalar properties from a state snapshot."""
         self.xlim_mode = state.xlim_mode
         self.ylim_mode = state.ylim_mode
         self.zlim_mode = state.zlim_mode
         self.clim_mode = state.clim_mode
-        self.colormap_value = state.colormap
         self.xtick = state.xtick
         self.ytick = state.ytick
         self.ztick = state.ztick
@@ -4409,6 +4404,38 @@ class MatlabLikeAxesBase:
         self.plot_box_aspect_ratio = state.plot_box_aspect_ratio
         self.plot_box_aspect_ratio_mode = state.plot_box_aspect_ratio_mode
         self.axis_visible = state.axis_visible
+        self.x_direction = state.x_direction
+        self.y_direction = state.y_direction
+        self.z_direction = state.z_direction
+        self.x_scale = state.x_scale
+        self.y_scale = state.y_scale
+        self.z_scale = state.z_scale
+        self.axis_layer = state.axis_layer
+        self.tick_direction = state.tick_direction
+        self.tick_direction_mode = state.tick_direction_mode
+        self.tick_length = state.tick_length
+        self.x_axis_location = state.x_axis_location
+        self.y_axis_location = state.y_axis_location
+        self.camera_mode = state.camera_mode
+        self.camera_view_angle_mode = state.camera_view_angle_mode
+        self.camera_position_mode = state.camera_position_mode
+        self.camera_target_mode = state.camera_target_mode
+        self.camera_up_vector_mode = state.camera_up_vector_mode
+        self.camera_projection = state.camera_projection
+        self.hold_enabled = state.hold_enabled
+        self.next_plot = state.next_plot
+        self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
+        self.line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
+        self.next_series_index = state.next_series_index
+
+    def _load_axes_ui_state(self, axes: Any | None) -> None:
+        state = self._axes_ui_state.get(axes) if axes is not None else None
+        if state is None:
+            state = AxesUIState()
+            if axes is not None:
+                self._axes_ui_state[axes] = state
+        self._apply_state_properties(state)
+        self.colormap_value = state.colormap
         if axes is not None:
             self._apply_grid_state(axes, state)
             self.set_box_visible(axes, state.box_visible)
@@ -4444,31 +4471,8 @@ class MatlabLikeAxesBase:
             self.set_axes_text(axes, "xlabel", state.xlabel_text)
             self.set_axes_text(axes, "ylabel", state.ylabel_text)
             self.set_axes_text(axes, "zlabel", state.zlabel_text)
-        self.x_direction = state.x_direction
-        self.y_direction = state.y_direction
-        self.z_direction = state.z_direction
-        self.x_scale = state.x_scale
-        self.y_scale = state.y_scale
-        self.z_scale = state.z_scale
-        self.axis_layer = state.axis_layer
-        self.tick_direction = state.tick_direction
-        self.tick_direction_mode = state.tick_direction_mode
-        self.tick_length = state.tick_length
-        self.x_axis_location = state.x_axis_location
-        self.y_axis_location = state.y_axis_location
-        self.camera_mode = state.camera_mode
-        self.camera_view_angle_mode = state.camera_view_angle_mode
-        self.camera_position_mode = state.camera_position_mode
-        self.camera_target_mode = state.camera_target_mode
-        self.camera_up_vector_mode = state.camera_up_vector_mode
-        self.camera_projection = state.camera_projection
         if axes is not None and self.is_3d_axes(axes):
             self.set_camera_projection(axes, state.camera_projection)
-        self.hold_enabled = state.hold_enabled
-        self.next_plot = state.next_plot
-        self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
-        self.line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
-        self.next_series_index = state.next_series_index
 
     def home(self) -> bool:
         if not self.can_home():
@@ -4918,65 +4922,7 @@ class MatlabLikeAxesBase:
     def _restore_view(self, state: ViewState) -> None:
         axes = self.require_active_axes()
         self.set_limits(axes, state.limits)
-        self.xlim_mode = state.xlim_mode
-        self.ylim_mode = state.ylim_mode
-        self.zlim_mode = state.zlim_mode
-        self.clim_mode = state.clim_mode
-        self.xtick = state.xtick
-        self.ytick = state.ytick
-        self.ztick = state.ztick
-        self.xtick_mode = state.xtick_mode
-        self.ytick_mode = state.ytick_mode
-        self.ztick_mode = state.ztick_mode
-        self.xticklabel = state.xticklabel
-        self.yticklabel = state.yticklabel
-        self.zticklabel = state.zticklabel
-        self.xticklabel_mode = state.xticklabel_mode
-        self.yticklabel_mode = state.yticklabel_mode
-        self.zticklabel_mode = state.zticklabel_mode
-        self.xticklabel_rotation = state.xticklabel_rotation
-        self.yticklabel_rotation = state.yticklabel_rotation
-        self.zticklabel_rotation = state.zticklabel_rotation
-        self.xticklabel_rotation_mode = state.xticklabel_rotation_mode
-        self.yticklabel_rotation_mode = state.yticklabel_rotation_mode
-        self.zticklabel_rotation_mode = state.zticklabel_rotation_mode
-        self.axes_title = state.axes_title
-        self.subtitle_text = state.subtitle_text
-        self.sgtitle_text = state.sgtitle_text
-        self.yyaxis_side = state.yyaxis_side
-        self.xlabel_text = state.xlabel_text
-        self.ylabel_text = state.ylabel_text
-        self.zlabel_text = state.zlabel_text
-        self.axis_aspect = state.aspect
-        self.box_aspect = state.box_aspect
-        self.data_aspect_ratio = state.data_aspect_ratio
-        self.data_aspect_ratio_mode = state.data_aspect_ratio_mode
-        self.plot_box_aspect_ratio = state.plot_box_aspect_ratio
-        self.plot_box_aspect_ratio_mode = state.plot_box_aspect_ratio_mode
-        self.axis_visible = state.axis_visible
-        self.x_direction = state.x_direction
-        self.y_direction = state.y_direction
-        self.z_direction = state.z_direction
-        self.x_scale = state.x_scale
-        self.y_scale = state.y_scale
-        self.z_scale = state.z_scale
-        self.axis_layer = state.axis_layer
-        self.tick_direction = state.tick_direction
-        self.tick_direction_mode = state.tick_direction_mode
-        self.tick_length = state.tick_length
-        self.x_axis_location = state.x_axis_location
-        self.y_axis_location = state.y_axis_location
-        self.camera_mode = state.camera_mode
-        self.camera_view_angle_mode = state.camera_view_angle_mode
-        self.camera_position_mode = state.camera_position_mode
-        self.camera_target_mode = state.camera_target_mode
-        self.camera_up_vector_mode = state.camera_up_vector_mode
-        self.camera_projection = state.camera_projection
-        self.hold_enabled = state.hold_enabled
-        self.next_plot = state.next_plot
-        self.color_order = state.color_order or self.DEFAULT_COLOR_ORDER
-        self.line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
-        self.next_series_index = state.next_series_index
+        self._apply_state_properties(state)
         self.set_aspect(axes, state.aspect)
         self.set_box_aspect(axes, state.box_aspect)
         self.set_data_aspect_ratio(axes, state.data_aspect_ratio)
