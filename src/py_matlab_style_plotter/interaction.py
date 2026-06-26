@@ -1675,6 +1675,34 @@ class MatlabLikeAxesBase:
         self.font_angle = value
         return None
 
+    def color(self, value: Any = None) -> Any:
+        """MATLAB-like axes background color query/setter."""
+        if value is None:
+            return self.axes_color
+        self.axes_color = value
+        return None
+
+    def xcolor(self, value: Any = None) -> Any:
+        """MATLAB-like x-axis color query/setter."""
+        if value is None:
+            return self.x_color
+        self.x_color = value
+        return None
+
+    def ycolor(self, value: Any = None) -> Any:
+        """MATLAB-like y-axis color query/setter."""
+        if value is None:
+            return self.y_color
+        self.y_color = value
+        return None
+
+    def zcolor(self, value: Any = None) -> Any:
+        """MATLAB-like z-axis color query/setter."""
+        if value is None:
+            return self.z_color
+        self.z_color = value
+        return None
+
     def colororder(
         self,
         value: Sequence[Sequence[float]] | Literal["default"] | None = None,
