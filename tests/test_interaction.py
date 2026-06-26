@@ -30,6 +30,7 @@ from py_matlab_style_plotter import (
     PolarSeries,
     SpySeries,
     Scatter3Series,
+    Stem3Series,
     ScatterSeries,
     SurfaceSeries,
     StemSeries,
@@ -114,6 +115,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_scatter_series = []
         self.drawn_scatter3_series = []
         self.drawn_stem_series = []
+        self.drawn_stem3_series = []
         self.drawn_bar_series = []
         self.drawn_barh_series = []
         self.drawn_area_series = []
@@ -209,6 +211,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_stem_series(self, axes, series):
         self.drawn_stem_series.append((axes, tuple(series)))
         return [f"stem-{len(self.drawn_stem_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_stem3_series(self, axes, series):
+        self.drawn_stem3_series.append((axes, tuple(series)))
+        return [f"stem3-{len(self.drawn_stem3_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_bar_series(self, axes, series):
         self.drawn_bar_series.append((axes, tuple(series)))
@@ -1759,6 +1765,25 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "scatter3"):
             plotter.scatter3([1, 2], [3, 4])
+
+    def test_stem3_normalizes_xyz_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.stem3([1, 2, 3], [4, 5, 6], [7, 8, 9])
+
+        self.assertEqual(artists, ["stem3-1-0"])
+        _axes, series = plotter.drawn_stem3_series[0]
+        self.assertEqual(len(series[0].x), 3)
+        self.assertEqual(len(series[0].y), 3)
+        self.assertEqual(len(series[0].z), 3)
+
+    def test_stem3_requires_xyz(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "stem3"):
+            plotter.stem3([1, 2], [3, 4])
+
 
     def test_stem_normalizes_y_series_and_runs_lifecycle(self):
         axes = FakeAxes()

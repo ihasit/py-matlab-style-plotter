@@ -191,6 +191,17 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
+    def draw_stem3_series(self, axes: Any, series: list[Any]) -> list[Any]:
+        import numpy as np
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            markerline, stemlines, baseline = axes.stem(item.x, item.y, item.z, **kwargs)
+            artists.append(markerline)
+            artists.extend(stemlines)
+        self._draw_idle(axes)
+        return artists
+
     def draw_bar_series(self, axes: Any, series: list[BarSeries]) -> list[Any]:
         artists: list[Any] = []
         for item in series:

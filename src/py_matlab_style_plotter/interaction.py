@@ -344,6 +344,18 @@ class StemSeries:
 
 
 @dataclass(frozen=True)
+class Stem3Series:
+    """One normalized MATLAB-like ``stem3`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    z: tuple[float, ...]
+    style: str | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class BarSeries:
     """One normalized MATLAB-like vertical ``bar`` series."""
 
@@ -1298,6 +1310,17 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def stem3(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like 3D stem series on an axes."""
+
+        axes, args = self._resolve_axes(args, axes)
+        self.set_active_axes(axes)
+        series = self.normalize_stem3_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_stem3_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def bar(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like vertical bar series on an axes."""
 
@@ -1711,6 +1734,17 @@ class MatlabLikeAxesBase:
             StemSeries(series.x, series.y, series.style, series.properties, series.line_spec)
             for series in self.normalize_plot_args(args, kwargs)
         ]
+
+    def normalize_stem3_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[Stem3Series]:
+        """Normalize common MATLAB ``stem3`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 3:
+            raise ValueError("stem3 requires at least x, y, z data")
+        x = self._numeric_vector(data_args[0], "stem3 x")
+        y = self._numeric_vector(data_args[1], "stem3 y")
+        z = self._numeric_vector(data_args[2], "stem3 z")
+        return [Stem3Series(x, y, z, properties=properties)]
 
     def normalize_bar_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[BarSeries]:
         """Normalize common MATLAB vertical ``bar`` calling forms."""
@@ -5537,6 +5571,11 @@ class MatlabLikeAxesBase:
 
     def draw_stem_series(self, axes: Any, series: Sequence[StemSeries]) -> list[Any]:
         """Draw normalized stem series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_stem3_series(self, axes: Any, series: Sequence[Stem3Series]) -> list[Any]:
+        """Draw normalized 3D stem series for the concrete backend."""
 
         raise NotImplementedError
 
