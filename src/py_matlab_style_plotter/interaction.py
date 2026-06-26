@@ -784,6 +784,12 @@ class MatlabLikeAxesBase:
         self.zoom_box_min_span_ratio = 1.0e-9
         self._linked: list[tuple[set[Any], LinkAxesAxis]] = []
 
+    def _resolve_axes(self, args: tuple[Any, ...], axes: Any | None) -> tuple[Any, tuple[Any, ...]]:
+        """Resolve axes from positional args or the active axes, returning ``(axes, remaining_args)``."""
+        if axes is None and args and self.is_axes_handle(args[0]):
+            return args[0], args[1:]
+        return axes if axes is not None else self.require_active_axes(), args
+
     def set_active_axes(self, axes: Any | None) -> None:
         if self.active_axes is axes:
             return
@@ -949,10 +955,7 @@ class MatlabLikeAxesBase:
     def cla(self, *args: Any, axes: Any | None = None) -> None:
         """Clear axes children, with ``cla("reset")`` resetting axes state."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         if len(args) > 1:
             raise ValueError("cla accepts at most one option")
         reset = False
@@ -1039,10 +1042,7 @@ class MatlabLikeAxesBase:
     def annotation(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like figure annotation (line, arrow, textarrow, textbox, ellipse, rectangle)."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_annotation_args(args, kwargs)
         artists = self.draw_annotation_series(axes, series)
@@ -1067,10 +1067,7 @@ class MatlabLikeAxesBase:
     def polarplot(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like polar plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_polar_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1082,10 +1079,7 @@ class MatlabLikeAxesBase:
     def pie(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like pie chart on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_pie_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1097,10 +1091,7 @@ class MatlabLikeAxesBase:
     def pareto(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like Pareto chart on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_pareto_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1112,10 +1103,7 @@ class MatlabLikeAxesBase:
     def heatmap(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like heatmap on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_heatmap_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1143,10 +1131,7 @@ class MatlabLikeAxesBase:
     def feather(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like feather plot (angle/magnitude vectors from origin)."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         data_args, properties = self._split_plot_args_and_properties(args, kwargs)
         if len(data_args) < 1:
@@ -1163,10 +1148,7 @@ class MatlabLikeAxesBase:
     def compass(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like compass plot (angle/magnitude vectors from origin)."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         data_args, properties = self._split_plot_args_and_properties(args, kwargs)
         if len(data_args) < 1:
@@ -1184,10 +1166,7 @@ class MatlabLikeAxesBase:
     def rose(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like rose diagram (angle histogram) on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_rose_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1225,10 +1204,7 @@ class MatlabLikeAxesBase:
         actual line creation.
         """
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_plot_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1240,10 +1216,7 @@ class MatlabLikeAxesBase:
     def plot3(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 3D line series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_plot3_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1255,10 +1228,7 @@ class MatlabLikeAxesBase:
     def stairs(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like stairstep series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_plot_args(args, kwargs)
         series = [self._stairs_series(item) for item in series]
@@ -1271,10 +1241,7 @@ class MatlabLikeAxesBase:
     def errorbar(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like vertical error-bar series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_errorbar_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1286,10 +1253,7 @@ class MatlabLikeAxesBase:
     def scatter(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scatter series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_scatter_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1301,10 +1265,7 @@ class MatlabLikeAxesBase:
     def stem(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like stem series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_stem_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1316,10 +1277,7 @@ class MatlabLikeAxesBase:
     def bar(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like vertical bar series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_bar_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1331,10 +1289,7 @@ class MatlabLikeAxesBase:
     def area(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like stacked area series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_area_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1346,10 +1301,7 @@ class MatlabLikeAxesBase:
     def fill(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like filled polygon series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_fill_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1361,10 +1313,7 @@ class MatlabLikeAxesBase:
     def histogram(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like histogram series on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_histogram_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1376,10 +1325,7 @@ class MatlabLikeAxesBase:
     def contour(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like contour plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_contour_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1394,10 +1340,7 @@ class MatlabLikeAxesBase:
     def contourf(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like filled contour plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_contour_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1410,10 +1353,7 @@ class MatlabLikeAxesBase:
     def surf(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 3D surface plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_surf_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1426,10 +1366,7 @@ class MatlabLikeAxesBase:
     def mesh(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 3D wireframe mesh plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_surf_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1442,10 +1379,7 @@ class MatlabLikeAxesBase:
     def quiver(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like vector field (quiver) plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_quiver_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1457,10 +1391,7 @@ class MatlabLikeAxesBase:
     def pcolor(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like pseudocolor checkerboard plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_pcolor_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1474,10 +1405,7 @@ class MatlabLikeAxesBase:
     def spy(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like sparsity pattern plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_spy_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1490,10 +1418,7 @@ class MatlabLikeAxesBase:
     def waterfall(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like waterfall plot (mesh with only row lines) on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_surf_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1507,10 +1432,7 @@ class MatlabLikeAxesBase:
     def contour3(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like 3D contour plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_contour_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1524,10 +1446,7 @@ class MatlabLikeAxesBase:
     def ribbon(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like ribbon plot on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_surf_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1540,10 +1459,7 @@ class MatlabLikeAxesBase:
     def imagesc(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like scaled image data on an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_imagesc_args(args, kwargs)
         self.prepare_for_plot(axes)
@@ -1556,10 +1472,7 @@ class MatlabLikeAxesBase:
     def line(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like line primitive without applying NextPlot clearing."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         data_args, properties = self._split_plot_args_and_properties(args, kwargs)
         if len(data_args) == 2:
@@ -1576,10 +1489,7 @@ class MatlabLikeAxesBase:
     def xline(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like vertical constant reference lines."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_constant_line_args("x", args, kwargs)
         artists = self.draw_constant_line_series(axes, series)
@@ -1589,10 +1499,7 @@ class MatlabLikeAxesBase:
     def yline(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like horizontal constant reference lines."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_constant_line_args("y", args, kwargs)
         artists = self.draw_constant_line_series(axes, series)
@@ -1602,10 +1509,7 @@ class MatlabLikeAxesBase:
     def text(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Add MATLAB-like text annotations to an axes."""
 
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_text_args(args, kwargs)
         artists = self.draw_text_series(axes, series)
@@ -1635,10 +1539,7 @@ class MatlabLikeAxesBase:
         axes: Any | None = None,
         **kwargs: Any,
     ) -> list[Any]:
-        if axes is None and args and self.is_axes_handle(args[0]):
-            axes = args[0]
-            args = args[1:]
-        axes = axes if axes is not None else self.require_active_axes()
+        axes, args = self._resolve_axes(args, axes)
         artists = self.plot(*args, axes=axes, **kwargs)
         self.set_active_axes(axes)
         changed = False
