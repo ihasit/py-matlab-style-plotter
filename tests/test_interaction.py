@@ -29,6 +29,7 @@ from py_matlab_style_plotter import (
     PieSeries,
     PolarSeries,
     SpySeries,
+    Scatter3Series,
     ScatterSeries,
     SurfaceSeries,
     StemSeries,
@@ -111,6 +112,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_plot3_series = []
         self.drawn_errorbar_series = []
         self.drawn_scatter_series = []
+        self.drawn_scatter3_series = []
         self.drawn_stem_series = []
         self.drawn_bar_series = []
         self.drawn_barh_series = []
@@ -199,6 +201,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_scatter_series(self, axes, series):
         self.drawn_scatter_series.append((axes, tuple(series)))
         return [f"scatter-{len(self.drawn_scatter_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_scatter3_series(self, axes, series):
+        self.drawn_scatter3_series.append((axes, tuple(series)))
+        return [f"scatter3-{len(self.drawn_scatter3_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_stem_series(self, axes, series):
         self.drawn_stem_series.append((axes, tuple(series)))
@@ -1734,6 +1740,25 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
             plotter.scatter([1, 2], [3, 4], 10, [1, 0])
         with self.assertRaisesRegex(ValueError, "color rows"):
             plotter.scatter([1, 2], [3, 4], 10, [[1, 0, 0]])
+
+    
+    def test_scatter3_normalizes_xyz_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.scatter3([1, 2, 3], [4, 5, 6], [7, 8, 9])
+
+        self.assertEqual(artists, ["scatter3-1-0"])
+        _axes, series = plotter.drawn_scatter3_series[0]
+        self.assertEqual(len(series[0].x), 3)
+        self.assertEqual(len(series[0].y), 3)
+        self.assertEqual(len(series[0].z), 3)
+
+    def test_scatter3_requires_xyz(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "scatter3"):
+            plotter.scatter3([1, 2], [3, 4])
 
     def test_stem_normalizes_y_series_and_runs_lifecycle(self):
         axes = FakeAxes()

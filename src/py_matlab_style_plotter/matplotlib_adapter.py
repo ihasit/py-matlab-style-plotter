@@ -159,6 +159,22 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
+    def draw_scatter3_series(self, axes: Any, series: list[Any]) -> list[Any]:
+        artists: list[Any] = []
+        for item in series:
+            kwargs = {**dict(item.line_spec), **dict(item.properties)}
+            color = item.color if item.color is not None else kwargs.get("color")
+            kwargs.pop("color", None)
+            kwargs.pop("linestyle", None)
+            if item.size is not None:
+                kwargs.setdefault("s", item.size)
+            if color is not None:
+                kwargs.setdefault("c", color)
+            created = axes.scatter(item.x, item.y, item.z, **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
     def draw_stem_series(self, axes: Any, series: list[StemSeries]) -> list[Any]:
         artists: list[Any] = []
         for item in series:

@@ -320,6 +320,19 @@ class ScatterSeries:
 
 
 @dataclass(frozen=True)
+class Scatter3Series:
+    """One normalized MATLAB-like ``scatter3`` series."""
+
+    x: tuple[float, ...]
+    y: tuple[float, ...]
+    z: tuple[float, ...]
+    size: tuple[float, ...] | float | None = None
+    color: Any | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+    line_spec: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class StemSeries:
     """One normalized MATLAB-like ``stem`` series."""
 
@@ -1262,6 +1275,17 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def scatter3(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like 3D scatter series on an axes."""
+
+        axes, args = self._resolve_axes(args, axes)
+        self.set_active_axes(axes)
+        series = self.normalize_scatter3_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_scatter3_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def stem(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like stem series on an axes."""
 
@@ -1666,6 +1690,19 @@ class MatlabLikeAxesBase:
             )
             for series in base_series
         ]
+
+    def normalize_scatter3_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[Scatter3Series]:
+        """Normalize common MATLAB ``scatter3`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 3:
+            raise ValueError("scatter3 requires at least x, y, z data")
+        x = self._numeric_vector(data_args[0], "scatter3 x")
+        y = self._numeric_vector(data_args[1], "scatter3 y")
+        z = self._numeric_vector(data_args[2], "scatter3 z")
+        size = self._normalize_scatter_size(data_args[3]) if len(data_args) > 3 else None
+        color = self._normalize_scatter_color(data_args[4]) if len(data_args) > 4 else None
+        return [Scatter3Series(x, y, z, size, color, properties)]
 
     def normalize_stem_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[StemSeries]:
         """Normalize common MATLAB ``stem`` calling forms."""
@@ -5490,6 +5527,11 @@ class MatlabLikeAxesBase:
 
     def draw_scatter_series(self, axes: Any, series: Sequence[ScatterSeries]) -> list[Any]:
         """Draw normalized scatter series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_scatter3_series(self, axes: Any, series: Sequence[Scatter3Series]) -> list[Any]:
+        """Draw normalized 3D scatter series for the concrete backend."""
 
         raise NotImplementedError
 
