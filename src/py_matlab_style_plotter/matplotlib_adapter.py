@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any
 
+import copy
 import numpy as np
 
 from .interaction import (
@@ -394,7 +395,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
 
     def copy_artist(self, artist: Any, target: Any) -> Any:
-        import copy
         new_artist = copy.copy(artist)
         if hasattr(new_artist, "axes"):
             new_artist.axes = target
