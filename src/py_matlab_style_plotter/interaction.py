@@ -1286,6 +1286,18 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+    def barh(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like horizontal bar series on an axes."""
+
+        axes, args = self._resolve_axes(args, axes)
+        self.set_active_axes(axes)
+        series = self.normalize_bar_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        series = self._apply_bar_series_order(axes, series)
+        artists = self.draw_barh_series(axes, series)
+        self.after_plot(axes)
+        return artists
+
     def area(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like stacked area series on an axes."""
 
@@ -5488,6 +5500,11 @@ class MatlabLikeAxesBase:
 
     def draw_bar_series(self, axes: Any, series: Sequence[BarSeries]) -> list[Any]:
         """Draw normalized vertical bar series for the concrete backend."""
+
+        raise NotImplementedError
+
+    def draw_barh_series(self, axes: Any, series: Sequence[BarSeries]) -> list[Any]:
+        """Draw normalized horizontal bar series for the concrete backend."""
 
         raise NotImplementedError
 

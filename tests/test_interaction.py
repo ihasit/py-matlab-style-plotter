@@ -113,6 +113,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_scatter_series = []
         self.drawn_stem_series = []
         self.drawn_bar_series = []
+        self.drawn_barh_series = []
         self.drawn_area_series = []
         self.drawn_fill_series = []
         self.drawn_histogram_series = []
@@ -206,6 +207,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_bar_series(self, axes, series):
         self.drawn_bar_series.append((axes, tuple(series)))
         return [f"bar-{len(self.drawn_bar_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_barh_series(self, axes, series):
+        self.drawn_barh_series.append((axes, tuple(series)))
+        return [f"barh-{len(self.drawn_barh_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_area_series(self, axes, series):
         self.drawn_area_series.append((axes, tuple(series)))
@@ -1833,6 +1838,29 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertIs(drawn_axes, axes2)
         self.assertEqual(series[0].x, (10.0, 20.0))
         self.assertEqual(series[0].y, (30.0, 40.0))
+
+    def test_barh_normalizes_y_series_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.barh([10, 20, 30], "DisplayName", "bars")
+
+        self.assertEqual(artists, ["barh-1-0"])
+        _axes, series = plotter.drawn_barh_series[0]
+        self.assertEqual(len(series[0].y), 3)
+        self.assertEqual(len(series[0].x), 3)
+
+    def test_barh_accepts_positional_axes_handle(self):
+        axes1 = FakeAxes()
+        axes2 = FakeAxes()
+        plotter = FakePlotter(axes1)
+
+        artists = plotter.barh(axes2, [10, 20], [30, 40])
+
+        self.assertTrue(plotter.is_active_axes(axes2))
+        _axes, series = plotter.drawn_barh_series[0]
+        self.assertEqual(len(series[0].y), 2)
+
 
     def test_area_normalizes_y_series_and_runs_lifecycle(self):
         axes = FakeAxes()
