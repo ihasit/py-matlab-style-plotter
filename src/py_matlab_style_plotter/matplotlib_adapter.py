@@ -267,7 +267,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
-    def draw_contour_series(self, axes: Any, series: list) -> list:
+    def draw_contour_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -280,7 +280,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_contourf_series(self, axes: Any, series: list) -> list:
+    def draw_contourf_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -292,7 +292,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
-    def draw_surf_series(self, axes: Any, series: list) -> list:
+    def draw_surf_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -312,7 +312,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
-    def draw_mesh_series(self, axes: Any, series: list) -> list:
+    def draw_mesh_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -332,7 +332,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_quiver_series(self, axes: Any, series: list) -> list:
+    def draw_quiver_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -346,7 +346,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_pcolor_series(self, axes: Any, series: list) -> list:
+    def draw_pcolor_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -387,7 +387,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return getattr(artist, name, None)
 
 
-    def get_children(self, obj: Any) -> list:
+    def get_children(self, obj: Any) -> list[Any]:
         children = []
         for attr in ("lines", "collections", "images", "patches"):
             children.extend(getattr(obj, attr, []))
@@ -405,7 +405,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return new_artist
 
 
-    def draw_spy_series(self, axes: Any, series: list) -> list:
+    def draw_spy_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -422,7 +422,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
 
 
-    def draw_annotation_series(self, axes: Any, series: list) -> list:
+    def draw_annotation_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
@@ -470,7 +470,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes._yyaxis_active = "left"
 
 
-    def draw_polar_series(self, axes: Any, series: list) -> list:
+    def draw_polar_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             theta_arr = np.array(item.theta)
@@ -485,7 +485,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return artists
 
 
-    def draw_pie_series(self, axes: Any, series: list) -> list:
+    def draw_pie_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
         for item in series:
             kwargs = dict(item.properties)
