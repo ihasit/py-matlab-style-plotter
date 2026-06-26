@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import atan, cos, degrees, isfinite, radians, sin, tan
-from typing import Any, cast, Iterable, Literal, overload, Sequence
+from typing import Any, Callable, cast, Iterable, Literal, overload, Sequence
 
 
 LimitMode = Literal["auto", "manual"]
@@ -2537,29 +2537,31 @@ class MatlabLikeAxesBase:
     def _series_has_property(self, series: PlotSeries, property_name: str) -> bool:
         return any(name == property_name for name, _value in (*series.line_spec, *series.properties))
 
-    def _apply_plot3_series_order(self, axes: Any, series: list[Plot3Series]) -> list[Plot3Series]:
-        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
+    def _apply_proxy_series_order(
+        self,
+        axes: Any,
+        series: list,
+        to_plot_series: "Callable[..., PlotSeries]",
+        from_plot_series: "Callable[..., Any]",
+    ) -> list[Any]:
+        """Apply color/line-style ordering via a PlotSeries proxy round-trip."""
+        proxy = [to_plot_series(item) for item in series]
         ordered = self._apply_plot_series_order(axes, proxy)
-        return [
-            Plot3Series(item.x, item.y, item.z, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
-            for item, ordered_item in zip(series, ordered)
-        ]
+        return [from_plot_series(item, o) for item, o in zip(series, ordered)]
+
+    def _apply_plot3_series_order(self, axes: Any, series: list[Plot3Series]) -> list[Plot3Series]:
+        return self._apply_proxy_series_order(
+            axes, series,
+            lambda i: PlotSeries(i.x, i.y, i.style, i.properties, i.line_spec),
+            lambda i, o: Plot3Series(i.x, i.y, i.z, o.style, o.properties, o.line_spec),
+        )
 
     def _apply_errorbar_series_order(self, axes: Any, series: list[ErrorBarSeries]) -> list[ErrorBarSeries]:
-        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
-        ordered = self._apply_plot_series_order(axes, proxy)
-        return [
-            ErrorBarSeries(
-                item.x,
-                item.y,
-                item.y_negative,
-                item.y_positive,
-                ordered_item.style,
-                ordered_item.properties,
-                ordered_item.line_spec,
-            )
-            for item, ordered_item in zip(series, ordered)
-        ]
+        return self._apply_proxy_series_order(
+            axes, series,
+            lambda i: PlotSeries(i.x, i.y, i.style, i.properties, i.line_spec),
+            lambda i, o: ErrorBarSeries(i.x, i.y, i.y_negative, i.y_positive, o.style, o.properties, o.line_spec),
+        )
 
     def _apply_scatter_series_order(self, axes: Any, series: list[ScatterSeries]) -> list[ScatterSeries]:
         state = self._current_axes_ui_state(axes)
@@ -2583,28 +2585,25 @@ class MatlabLikeAxesBase:
         return ordered
 
     def _apply_stem_series_order(self, axes: Any, series: list[StemSeries]) -> list[StemSeries]:
-        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
-        ordered = self._apply_plot_series_order(axes, proxy)
-        return [
-            StemSeries(item.x, item.y, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
-            for item, ordered_item in zip(series, ordered)
-        ]
+        return self._apply_proxy_series_order(
+            axes, series,
+            lambda i: PlotSeries(i.x, i.y, i.style, i.properties, i.line_spec),
+            lambda i, o: StemSeries(i.x, i.y, o.style, o.properties, o.line_spec),
+        )
 
     def _apply_bar_series_order(self, axes: Any, series: list[BarSeries]) -> list[BarSeries]:
-        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
-        ordered = self._apply_plot_series_order(axes, proxy)
-        return [
-            BarSeries(item.x, item.y, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
-            for item, ordered_item in zip(series, ordered)
-        ]
+        return self._apply_proxy_series_order(
+            axes, series,
+            lambda i: PlotSeries(i.x, i.y, i.style, i.properties, i.line_spec),
+            lambda i, o: BarSeries(i.x, i.y, o.style, o.properties, o.line_spec),
+        )
 
     def _apply_area_series_order(self, axes: Any, series: list[AreaSeries]) -> list[AreaSeries]:
-        proxy = [PlotSeries(item.x, item.y, item.style, item.properties, item.line_spec) for item in series]
-        ordered = self._apply_plot_series_order(axes, proxy)
-        return [
-            AreaSeries(item.x, item.y, item.baseline, ordered_item.style, ordered_item.properties, ordered_item.line_spec)
-            for item, ordered_item in zip(series, ordered)
-        ]
+        return self._apply_proxy_series_order(
+            axes, series,
+            lambda i: PlotSeries(i.x, i.y, i.style, i.properties, i.line_spec),
+            lambda i, o: AreaSeries(i.x, i.y, i.baseline, o.style, o.properties, o.line_spec),
+        )
 
     def _apply_fill_series_order(self, axes: Any, series: list[FillSeries]) -> list[FillSeries]:
         state = self._current_axes_ui_state(axes)
