@@ -499,6 +499,15 @@ class PolarSeries:
 
 
 @dataclass(frozen=True)
+class PolarHistogramSeries:
+    """One normalized MATLAB-like ``polarhistogram`` series."""
+
+    theta: tuple[float, ...]
+    bins: int | tuple[float, ...] | None = None
+    properties: tuple[tuple[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class PieSeries:
     """One normalized MATLAB-like pie chart series."""
 
@@ -1100,6 +1109,17 @@ class MatlabLikeAxesBase:
         self.after_plot(axes)
         return artists
 
+
+    def polarhistogram(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
+        """Draw MATLAB-like polar histogram on an axes."""
+
+        axes, args = self._resolve_axes(args, axes)
+        self.set_active_axes(axes)
+        series = self.normalize_polarhistogram_args(args, kwargs)
+        self.prepare_for_plot(axes)
+        artists = self.draw_polarhistogram_series(axes, series)
+        self.after_plot(axes)
+        return artists
 
     def pie(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
         """Draw MATLAB-like pie chart on an axes."""
@@ -1998,6 +2018,22 @@ class MatlabLikeAxesBase:
         line_spec = self._parse_line_spec(style) if style else ()
         return [PolarSeries(theta, rho, style, properties, line_spec)]
 
+
+    def normalize_polarhistogram_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PolarHistogramSeries]:
+        """Normalize common MATLAB ``polarhistogram`` calling forms."""
+
+        data_args, properties = self._split_plot_args_and_properties(args, kwargs)
+        if len(data_args) < 1:
+            raise ValueError("polarhistogram requires theta data")
+        theta = self._numeric_vector(data_args[0], "polarhistogram theta")
+        bins = None
+        if len(data_args) > 1:
+            second = self._numeric_vector(data_args[1], "polarhistogram bins")
+            if len(second) == 1:
+                bins = int(second[0])
+            else:
+                bins = second
+        return [PolarHistogramSeries(theta, bins, properties)]
 
     def normalize_pie_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[PieSeries]:
         """Normalize common MATLAB ``pie`` calling forms."""
@@ -5708,6 +5744,11 @@ class MatlabLikeAxesBase:
         raise NotImplementedError
 
 
+
+    def draw_polarhistogram_series(self, axes: Any, series: Sequence[PolarHistogramSeries]) -> list[Any]:
+        """Draw normalized polar histogram series for the concrete backend."""
+
+        raise NotImplementedError
 
     def draw_pie_series(self, axes: Any, series: Sequence[PieSeries]) -> list[Any]:
         """Draw normalized pie chart series for the concrete backend."""

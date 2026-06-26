@@ -27,6 +27,7 @@ from py_matlab_style_plotter import (
     HeatmapSeries,
     ParetoSeries,
     PieSeries,
+    PolarHistogramSeries,
     PolarSeries,
     SpySeries,
     Scatter3Series,
@@ -132,6 +133,7 @@ class FakePlotter(MatlabLikeAxesBase):
         self.drawn_spy_series = []
         self.drawn_annotation_series = []
         self.drawn_polar_series = []
+        self.drawn_polarhistogram_series = []
         self.drawn_pie_series = []
         self.drawn_pareto_series = []
         self.drawn_heatmap_series = []
@@ -279,6 +281,10 @@ class FakePlotter(MatlabLikeAxesBase):
     def draw_polar_series(self, axes, series):
         self.drawn_polar_series.append((axes, tuple(series)))
         return [f"polar-{len(self.drawn_polar_series)}-{index}" for index, _item in enumerate(series)]
+
+    def draw_polarhistogram_series(self, axes, series):
+        self.drawn_polarhistogram_series.append((axes, tuple(series)))
+        return [f"polarhist-{len(self.drawn_polarhistogram_series)}-{index}" for index, _item in enumerate(series)]
 
     def draw_pie_series(self, axes, series):
         self.drawn_pie_series.append((axes, tuple(series)))
@@ -600,6 +606,32 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "theta"):
             plotter.rose()
+
+    def test_polarhistogram_normalizes_theta_and_runs_lifecycle(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.polarhistogram([0.1, 0.5, 1.0, 2.0, 3.0])
+
+        self.assertEqual(artists, ["polarhist-1-0"])
+        _axes, series = plotter.drawn_polarhistogram_series[0]
+        self.assertEqual(len(series[0].theta), 5)
+
+    def test_polarhistogram_accepts_bins(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        artists = plotter.polarhistogram([0.1, 0.5, 1.0], 10)
+
+        _axes, series = plotter.drawn_polarhistogram_series[0]
+        self.assertEqual(series[0].bins, 10)
+
+    def test_polarhistogram_validates_arguments(self):
+        plotter = FakePlotter(FakeAxes())
+
+        with self.assertRaisesRegex(ValueError, "theta"):
+            plotter.polarhistogram()
+
 
     def test_feather_normalizes_uv_and_runs_lifecycle(self):
         axes = FakeAxes()

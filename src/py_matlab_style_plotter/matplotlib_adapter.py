@@ -525,6 +525,18 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._draw_idle(axes)
         return artists
 
+    def draw_polarhistogram_series(self, axes: Any, series: list[Any]) -> list[Any]:
+        artists = []
+        for item in series:
+            theta_arr = np.array(item.theta)
+            kwargs = dict(item.properties)
+            if item.bins is not None:
+                kwargs.setdefault("bins", item.bins)
+            created = axes.bar(theta_arr, np.ones_like(theta_arr), **kwargs)
+            artists.append(created)
+        self._draw_idle(axes)
+        return artists
+
 
     def draw_pie_series(self, axes: Any, series: list[Any]) -> list[Any]:
         artists = []
