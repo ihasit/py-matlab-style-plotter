@@ -1395,6 +1395,10 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(state.alpha, 0.6)
         self.assertEqual(state.zorder, 4.0)
         self.assertTrue(state.visible)
+        self.assertIsNotNone(state.highlight)
+        self.assertIn(state.highlight, axes.lines)
+        self.assertEqual(state.highlight.kwargs["color"], "#FFD400")
+        self.assertEqual(state.highlight.kwargs["label"], "_matlab_selection_highlight")
         self.assertGreater(line1.get_linewidth(), 2.0)
         self.assertEqual(line1.get_alpha(), 1.0)
         self.assertEqual(line1.get_zorder(), 1004.0)
@@ -1407,13 +1411,28 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter = MatplotlibAxesPlotter(axes)
 
         plotter.select_line(line)
+        highlight = plotter.selected_lines[0].highlight
         plotter.select_line(line)
         plotter.clear_selection()
 
         self.assertEqual(len(plotter.selected_lines), 0)
+        self.assertTrue(highlight.removed)
+        self.assertNotIn(highlight, axes.lines)
         self.assertEqual(line.get_linewidth(), 2.0)
         self.assertEqual(line.get_alpha(), 0.6)
         self.assertEqual(line.get_zorder(), 4.0)
+
+    def test_selection_highlight_is_not_pickable(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0], [1.0], label="a", linewidth=2.0, alpha=0.6, zorder=4.0)
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.select_line(line)
+        highlight = plotter.selected_lines[0].highlight
+
+        self.assertIs(plotter.find_nearest_line_point(axes, 1.0, 1.0)[0], line)
+        self.assertNotEqual(plotter.find_nearest_line_point(axes, 1.0, 1.0)[0], highlight)
 
     def test_click_selected_line_without_modifier_is_noop(self):
         axes = FakeAxes()

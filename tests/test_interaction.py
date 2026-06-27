@@ -5330,6 +5330,21 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(plotter.data_aspect_ratio_mode, "manual")
         self.assertEqual(plotter.plot_box_aspect_ratio_mode, "manual")
 
+    def test_view_history_does_not_apply_auto_aspect_ratios_as_manual(self):
+        axes = FakeAxes()
+        plotter = FakePlotter(axes)
+
+        plotter.push_current_view()
+        axes.data_aspect_ratio = (9.0, 9.0, 9.0)
+        axes.plot_box_aspect_ratio = (8.0, 8.0, 8.0)
+
+        self.assertTrue(plotter.home())
+
+        self.assertEqual(plotter.data_aspect_ratio_mode, "auto")
+        self.assertEqual(plotter.plot_box_aspect_ratio_mode, "auto")
+        self.assertEqual(axes.data_aspect_ratio, (9.0, 9.0, 9.0))
+        self.assertEqual(axes.plot_box_aspect_ratio, (8.0, 8.0, 8.0))
+
     def test_view_history_restores_axis_visibility(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)

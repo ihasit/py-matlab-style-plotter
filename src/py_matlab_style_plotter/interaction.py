@@ -5117,8 +5117,10 @@ class MatlabLikeAxesBase:
         self._apply_state_properties(state)
         self.set_aspect(axes, state.aspect)
         self.set_box_aspect(axes, state.box_aspect)
-        self.set_data_aspect_ratio(axes, state.data_aspect_ratio)
-        self.set_plot_box_aspect_ratio(axes, state.plot_box_aspect_ratio)
+        if state.data_aspect_ratio_mode == "manual":
+            self.set_data_aspect_ratio(axes, state.data_aspect_ratio)
+        if state.plot_box_aspect_ratio_mode == "manual":
+            self.set_plot_box_aspect_ratio(axes, state.plot_box_aspect_ratio)
         self.set_axis_visible(axes, state.axis_visible)
         self._apply_grid_state(axes, state)
         self.set_box_visible(axes, state.box_visible)

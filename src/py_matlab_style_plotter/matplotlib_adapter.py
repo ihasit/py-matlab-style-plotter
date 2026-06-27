@@ -60,6 +60,7 @@ class SelectedLineState:
     alpha: float | None
     zorder: float
     visible: bool
+    highlight: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -1186,12 +1187,15 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def select_line(self, line: Any) -> None:
         if self.is_line_selected(line):
             return
+        linewidth = float(getattr(line, "get_linewidth", lambda: 1.5)())
+        zorder = float(getattr(line, "get_zorder", lambda: 2.0)())
         state = SelectedLineState(
             line=line,
-            linewidth=float(getattr(line, "get_linewidth", lambda: 1.5)()),
+            linewidth=linewidth,
             alpha=getattr(line, "get_alpha", lambda: None)(),
-            zorder=float(getattr(line, "get_zorder", lambda: 2.0)()),
+            zorder=zorder,
             visible=bool(getattr(line, "get_visible", lambda: True)()),
+            highlight=self._draw_selected_line_highlight(line, linewidth, zorder),
         )
         self.selected_lines.append(state)
         line.set_linewidth(max(state.linewidth * 1.8, state.linewidth + 1.5))
@@ -1260,6 +1264,10 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if set_visible is not None:
                 set_visible(new_visible)
                 axes_to_redraw.add(brushed_state.axes)
+        for state in self.selected_lines:
+            set_visible = getattr(state.highlight, "set_visible", None)
+            if set_visible is not None:
+                set_visible(new_visible)
         for axes in axes_to_redraw:
             self._draw_idle(axes)
         return True
@@ -1630,11 +1638,68 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._deactivate_matplotlib_toolbar_mode()
 
     def _restore_line_state(self, state: SelectedLineState) -> None:
+        self._remove_artist(state.highlight)
         state.line.set_linewidth(state.linewidth)
         state.line.set_alpha(state.alpha)
         state.line.set_zorder(state.zorder)
         if hasattr(state.line, "set_visible"):
             state.line.set_visible(state.visible)
+
+    def _draw_selected_line_highlight(self, line: Any, linewidth: float, zorder: float) -> Any | None:
+        axes = getattr(line, "axes", None)
+        plot = getattr(axes, "plot", None)
+        get_xdata = getattr(line, "get_xdata", None)
+        get_ydata = getattr(line, "get_ydata", None)
+        if plot is None or get_xdata is None or get_ydata is None:
+            return None
+        args = [get_xdata(), get_ydata()]
+        get_zdata = getattr(line, "get_zdata", None)
+        if get_zdata is not None and self.is_3d_axes(axes):
+            args.append(get_zdata())
+        marker = getattr(line, "get_marker", lambda: None)()
+        linestyle = getattr(line, "get_linestyle", lambda: "-")()
+        highlight_kwargs = {
+            "color": "#FFD400",
+            "linewidth": max(linewidth + 4.0, linewidth * 2.4),
+            "alpha": 0.55,
+            "zorder": zorder + 999.0,
+            "solid_capstyle": "round",
+            "dash_capstyle": "round",
+            "label": "_matlab_selection_highlight",
+        }
+        if marker not in {None, "", "None", "none", " "}:
+            highlight_kwargs["marker"] = marker
+            highlight_kwargs["markerfacecolor"] = "none"
+            highlight_kwargs["markeredgecolor"] = "#FFD400"
+            highlight_kwargs["markeredgewidth"] = 2.0
+            markersize = getattr(line, "get_markersize", lambda: None)()
+            if markersize is not None:
+                highlight_kwargs["markersize"] = float(markersize) + 4.0
+        if linestyle not in {None, "", "None", "none", " "}:
+            highlight_kwargs["linestyle"] = linestyle
+        else:
+            highlight_kwargs["linestyle"] = "None"
+        try:
+            created = plot(*args, **highlight_kwargs)
+        except (TypeError, ValueError, AttributeError):
+            return None
+        if isinstance(created, list):
+            return created[0] if created else None
+        try:
+            return next(iter(created))
+        except TypeError:
+            return created
+
+    def _remove_artist(self, artist: Any | None) -> None:
+        if artist is None:
+            return
+        remove = getattr(artist, "remove", None)
+        if remove is None:
+            return
+        try:
+            remove()
+        except ValueError:
+            pass
 
     def _deactivate_matplotlib_toolbar_mode(self) -> None:
         axes = self.active_axes or self.axes
@@ -1670,7 +1735,8 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
     def _line_is_pickable(self, line: Any) -> bool:
         visible = getattr(line, "get_visible", lambda: True)()
-        return bool(visible)
+        label = getattr(line, "get_label", lambda: "")()
+        return bool(visible) and not str(label).startswith("_")
 
     def _line_zdata(self, line: Any) -> list[Any] | None:
         if hasattr(line, "get_zdata"):
