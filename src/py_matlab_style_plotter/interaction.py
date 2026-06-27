@@ -648,6 +648,7 @@ class _DragState:
     start_view: ViewState | None
     start_screen_x: float | None = None
     start_screen_y: float | None = None
+    start_screen_to_data: Any | None = None
     start_camera: Camera3DState | None = None
 
 
@@ -4850,6 +4851,7 @@ class MatlabLikeAxesBase:
                 start_view=self.current_view_state(event.axes),
                 start_screen_x=event.x,
                 start_screen_y=event.y,
+                start_screen_to_data=self._screen_to_data_transform(event.axes),
                 start_camera=self.get_camera3d(event.axes) if self.is_3d_axes(event.axes) else None,
             )
         elif self.mode == InteractionMode.ZOOM:
@@ -4967,8 +4969,11 @@ class MatlabLikeAxesBase:
             return
         if event.xdata is None or event.ydata is None or not self._is_finite_pair(event.xdata, event.ydata):
             return
-        dx = event.xdata - self._drag.start_x
-        dy = event.ydata - self._drag.start_y
+        if self.is_3d_axes(self._drag.axes) and self.pan_3d_mode == "camera":
+            dx = event.xdata - self._drag.start_x
+            dy = event.ydata - self._drag.start_y
+        else:
+            dx, dy = self._pan_drag_delta(self._drag, event)
         if "shift" in self._drag.modifiers:
             if self._pan_shift_constraint_is_horizontal(self._drag, event, dx, dy):
                 dy = 0.0
@@ -5265,6 +5270,41 @@ class MatlabLikeAxesBase:
         xlim = self._pan_axis_limits(limits.xlim, start_x, dx, self.x_scale)
         ylim = self._pan_axis_limits(limits.ylim, start_y, dy, self.y_scale)
         return AxesLimits(xlim, ylim, limits.zlim, limits.clim)
+
+    def _pan_drag_delta(self, drag: _DragState, event: PointerEvent) -> tuple[float, float]:
+        if (
+            drag.start_screen_to_data is not None
+            and event.x is not None
+            and event.y is not None
+            and self._is_finite_pair(event.x, event.y)
+        ):
+            transform = getattr(drag.start_screen_to_data, "transform", None)
+            if transform is not None:
+                try:
+                    current_x, current_y = transform((event.x, event.y))
+                except (TypeError, ValueError, IndexError, AttributeError):
+                    pass
+                else:
+                    if self._is_finite_pair(current_x, current_y):
+                        return float(current_x) - drag.start_x, float(current_y) - drag.start_y
+        return event.xdata - drag.start_x, event.ydata - drag.start_y
+
+    def _screen_to_data_transform(self, axes: Any) -> Any | None:
+        trans_data = getattr(axes, "transData", None)
+        inverted = getattr(trans_data, "inverted", None)
+        if inverted is None:
+            return None
+        try:
+            transform = inverted()
+        except (TypeError, ValueError, AttributeError):
+            return None
+        frozen = getattr(transform, "frozen", None)
+        if frozen is not None:
+            try:
+                transform = frozen()
+            except (TypeError, ValueError, AttributeError):
+                pass
+        return transform
 
     def _pan_shift_constraint_is_horizontal(self, drag: _DragState, event: PointerEvent, dx: float, dy: float) -> bool:
         if (

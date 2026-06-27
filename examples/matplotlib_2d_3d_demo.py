@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from py_matlab_style_plotter import CoordinateReadout, MatplotlibAxesPlotter, MatplotlibEventBridge
@@ -129,6 +130,74 @@ _MATLAB_MENU_ITEMS = (
         ),
     ),
 )
+_MENU_ICON_BY_METHOD = {
+    "matlab_none": "pointer",
+    "matlab_pan": "pan",
+    "matlab_zoom": "zoom",
+    "matlab_rotate3d": "rotate",
+    "matlab_data_cursor": "cursor",
+    "matlab_select": "select",
+    "matlab_brush": "brush",
+    "matlab_marker_none": "marker_none",
+    "matlab_marker_circle": "marker_circle",
+    "matlab_marker_square": "marker_square",
+    "matlab_marker_triangle": "marker_triangle",
+    "matlab_marker_x": "marker_x",
+    "matlab_marker_plus": "marker_plus",
+    "matlab_marker_point": "marker_point",
+    "matlab_line_solid": "line_solid",
+    "matlab_line_dashed": "line_dashed",
+    "matlab_line_dashdot": "line_dashdot",
+    "matlab_line_dotted": "line_dotted",
+    "matlab_line_none": "line_none",
+    "matlab_color_blue": "color_blue",
+    "matlab_color_orange": "color_orange",
+    "matlab_color_yellow": "color_yellow",
+    "matlab_color_purple": "color_purple",
+    "matlab_color_green": "color_green",
+    "matlab_color_cyan": "color_cyan",
+    "matlab_color_red": "color_red",
+    "matlab_color_black": "color_black",
+    "matlab_home": "home",
+    "matlab_back": "back",
+    "matlab_forward": "forward",
+    "matlab_view_2": "view2",
+    "matlab_view_3": "view3",
+    "matlab_axis_auto": "axis",
+    "matlab_axis_manual": "axis_manual",
+    "matlab_axis_tight": "axis_tight",
+    "matlab_axis_equal": "axis_equal",
+    "matlab_axis_fill": "axis_fill",
+    "matlab_axis_image": "axis_image",
+    "matlab_axis_normal": "axis_normal",
+    "matlab_axis_square": "axis_square",
+    "matlab_axis_vis3d": "axis_vis3d",
+    "matlab_axis_off": "axis_off",
+    "matlab_axis_on": "axis_on",
+    "matlab_axis_ij": "axis_ij",
+    "matlab_axis_xy": "axis_xy",
+    "matlab_hold": "hold",
+    "matlab_grid": "grid",
+    "matlab_legend": "legend",
+    "matlab_box": "box",
+    "matlab_colorbar": "colorbar",
+    "matlab_link_x": "link_x",
+    "matlab_link_y": "link_y",
+    "matlab_link_xy": "link_xy",
+    "matlab_selected_visibility": "visibility",
+    "matlab_clear_selection": "clear_selection",
+    "matlab_delete_selected": "delete",
+}
+_MENU_ICON_BY_LABEL = {
+    "Marker": "marker",
+    "Line Style": "line",
+    "Color": "color",
+    "View": "view",
+    "Axis": "axis",
+    "Display": "display",
+    "Link Axes": "link",
+    "Selection": "selection",
+}
 
 
 class DemoPlotter(MatplotlibAxesPlotter):
@@ -346,7 +415,7 @@ class MatlabToolbarActions:
         self.plotter.clear_selection()
 
     def matlab_delete_selected(self, *_args) -> None:
-        self.plotter.handle_delete_key()
+        self.plotter.delete_selected()
 
     def _set_line_property(self, name, value):
         lines = self._target_lines()
@@ -407,6 +476,8 @@ class MatlabContextMenu:
         row_height = 0.034
         separator_height = 0.009
         padding_x = 0.014
+        icon_width = 0.024
+        text_x = padding_x + icon_width + 0.008
         padding_y = 0.006
         menu_width = self._menu_width(entries)
         menu_height = padding_y * 2 + sum(separator_height if item is None else row_height for item in entries)
@@ -451,7 +522,7 @@ class MatlabContextMenu:
                 z=20_001 + level * 100,
             )
             self._add_text(
-                x + padding_x,
+                x + text_x,
                 item_y + row_height / 2,
                 label,
                 ha="left",
@@ -461,6 +532,9 @@ class MatlabContextMenu:
             )
             submenu = action_or_submenu if isinstance(action_or_submenu, tuple) else None
             method_name = None if submenu is not None else action_or_submenu
+            icon_kind = _MENU_ICON_BY_LABEL.get(label) if submenu is not None else _MENU_ICON_BY_METHOD.get(action_or_submenu)
+            if icon_kind is not None:
+                self._draw_menu_icon(icon_kind, x + padding_x, item_y + row_height / 2, icon_width, row_height, level)
             if submenu is not None:
                 self._add_text(
                     x + menu_width - 0.014,
@@ -528,10 +602,175 @@ class MatlabContextMenu:
             if marker_text:
                 self._add_text(sample_x + 0.012, sample_y, marker_text, ha="center", size=9, color="#202020", z=20_004 + level * 100)
 
+    def _draw_menu_icon(self, kind: str, x: float, y: float, width: float, height: float, level: int) -> None:
+        cx = x + width / 2
+        z = 20_004 + level * 100
+        left = x + width * 0.22
+        right = x + width * 0.78
+        top = y + height * 0.22
+        bottom = y - height * 0.22
+        accent = "#0072BD"
+        if kind.startswith("color_"):
+            self._draw_color_icon(kind, x, y, width, height, z)
+            return
+        if kind.startswith("marker_"):
+            self._draw_marker_icon(kind, cx, y, z)
+            return
+        if kind.startswith("line_"):
+            self._draw_line_icon(kind, x, y, width, z)
+            return
+        if kind in {"pointer", "select"}:
+            self._add_line([left, right], [top, bottom], color="#202020", width=1.0, z=z)
+            self._add_line([left, left + width * 0.26], [top, top - height * 0.02], color="#202020", width=1.0, z=z)
+            self._add_line([left, left + width * 0.06], [top, top - height * 0.23], color="#202020", width=1.0, z=z)
+        elif kind == "pan":
+            self._add_line([left, right], [y, y], color="#202020", width=1.0, z=z)
+            self._add_line([cx, cx], [bottom, top], color="#202020", width=1.0, z=z)
+            self._add_line([left, left + width * 0.12], [y, y + height * 0.08], color="#202020", width=1.0, z=z)
+            self._add_line([left, left + width * 0.12], [y, y - height * 0.08], color="#202020", width=1.0, z=z)
+            self._add_line([right, right - width * 0.12], [y, y + height * 0.08], color="#202020", width=1.0, z=z)
+            self._add_line([right, right - width * 0.12], [y, y - height * 0.08], color="#202020", width=1.0, z=z)
+        elif kind == "zoom":
+            self._add_marker(cx - width * 0.05, y + height * 0.04, "o", color="#202020", size=5.2, z=z, fill="none")
+            self._add_line([cx + width * 0.12, right], [y - height * 0.08, bottom], color="#202020", width=1.0, z=z)
+        elif kind == "rotate":
+            self._add_marker(cx, y, "o", color="#202020", size=6.2, z=z, fill="none")
+            self._add_line([cx + width * 0.14, right], [y + height * 0.12, y + height * 0.20], color="#202020", width=1.0, z=z)
+            self._add_line([right, right - width * 0.08], [y + height * 0.20, y + height * 0.08], color="#202020", width=1.0, z=z)
+        elif kind == "cursor":
+            self._add_line([left, right], [y, y], color="#202020", width=0.9, z=z)
+            self._add_line([cx, cx], [bottom, top], color="#202020", width=0.9, z=z)
+        elif kind == "brush":
+            self._add_patch(x + width * 0.28, y - height * 0.12, width * 0.36, height * 0.24, face=accent, edge=accent, line=0.0, z=z)
+            self._add_line([x + width * 0.60, right], [y - height * 0.02, bottom], color=accent, width=1.0, z=z)
+        elif kind == "marker":
+            self._add_marker(cx, y, "o", color=accent, size=5.8, z=z)
+        elif kind == "line":
+            self._draw_line_icon("line_solid", x, y, width, z)
+        elif kind == "color":
+            self._draw_color_swatch(x, y, width, height, "#0072BD", z)
+        elif kind in {"view", "view2", "view3"}:
+            self._draw_outline_box(x, y, width, height, z)
+        elif kind.startswith("axis"):
+            self._add_line([left, left], [bottom, top], color="#202020", width=1.0, z=z)
+            self._add_line([left, right], [bottom, bottom], color="#202020", width=1.0, z=z)
+        elif kind == "display":
+            self._draw_outline_box(x, y, width, height, z)
+            self._add_patch(cx - width * 0.12, y - height * 0.10, width * 0.24, height * 0.20, face="#202020", edge="#202020", line=0.0, z=z)
+        elif kind == "grid":
+            self._draw_outline_box(x, y, width, height, z)
+            self._add_line([cx, cx], [bottom, top], color="#202020", width=0.6, z=z)
+            self._add_line([left, right], [y, y], color="#202020", width=0.6, z=z)
+        elif kind == "legend":
+            for offset in (-0.11, 0.0, 0.11):
+                self._add_line([left, right], [y + height * offset, y + height * offset], color="#202020", width=0.8, z=z)
+        elif kind == "box":
+            self._draw_outline_box(x, y, width, height, z)
+        elif kind == "colorbar":
+            self._draw_color_swatch(x, y, width, height, "#D95319", z)
+        elif kind.startswith("link"):
+            self._add_marker(cx - width * 0.12, y, "o", color="#202020", size=4.2, z=z, fill="none")
+            self._add_marker(cx + width * 0.12, y, "o", color="#202020", size=4.2, z=z, fill="none")
+            self._add_line([cx - width * 0.04, cx + width * 0.04], [y, y], color="#202020", width=0.8, z=z)
+        elif kind == "selection":
+            self._draw_outline_box(x, y, width, height, z)
+            self._add_line([cx - width * 0.12, cx - width * 0.02, cx + width * 0.18], [y, bottom + height * 0.10, top - height * 0.06], color=accent, width=1.0, z=z)
+        elif kind == "visibility":
+            self._add_marker(cx, y, "o", color="#202020", size=6.0, z=z, fill="none")
+            self._add_marker(cx, y, "o", color="#202020", size=2.0, z=z)
+        elif kind == "clear_selection":
+            self._draw_x_icon(x, y, width, height, z)
+        elif kind == "delete":
+            self._draw_x_icon(x, y, width, height, z)
+            self._add_line([left, right], [top, top], color="#202020", width=0.8, z=z)
+        elif kind == "home":
+            self._add_line([left, cx, right], [y, top, y], color="#202020", width=1.0, z=z)
+            self._add_line([left + width * 0.10, left + width * 0.10, right - width * 0.10, right - width * 0.10], [y, bottom, bottom, y], color="#202020", width=1.0, z=z)
+        elif kind == "back":
+            self._add_line([right, left, right], [top, y, bottom], color="#202020", width=1.2, z=z)
+        elif kind == "forward":
+            self._add_line([left, right, left], [top, y, bottom], color="#202020", width=1.2, z=z)
+        elif kind == "hold":
+            self._add_text(cx, y, "H", ha="center", size=8, color="#202020", z=z)
+
+    def _draw_marker_icon(self, kind: str, x: float, y: float, z: int) -> None:
+        marker = {
+            "marker_none": "x",
+            "marker_circle": "o",
+            "marker_square": "s",
+            "marker_triangle": "^",
+            "marker_x": "x",
+            "marker_plus": "+",
+            "marker_point": ".",
+        }.get(kind, "o")
+        fill = "none" if kind == "marker_none" else "#0072BD"
+        self._add_marker(x, y, marker, color="#0072BD", size=5.8, z=z, fill=fill)
+
+    def _draw_line_icon(self, kind: str, x: float, y: float, width: float, z: int) -> None:
+        if kind == "line_none":
+            self._draw_x_icon(x, y, width, width, z, color="#0072BD")
+            return
+        style = {
+            "line_solid": "-",
+            "line_dashed": "--",
+            "line_dashdot": "-.",
+            "line_dotted": ":",
+        }.get(kind, "-")
+        self._add_line([x + width * 0.16, x + width * 0.84], [y, y], color="#0072BD", width=1.4, z=z, style=style)
+
+    def _draw_color_icon(self, kind: str, x: float, y: float, width: float, height: float, z: int) -> None:
+        color = {
+            "color_blue": "#0072BD",
+            "color_orange": "#D95319",
+            "color_yellow": "#EDB120",
+            "color_purple": "#7E2F8E",
+            "color_green": "#77AC30",
+            "color_cyan": "#4DBEEE",
+            "color_red": "#A2142F",
+            "color_black": "#000000",
+        }.get(kind, "#0072BD")
+        self._draw_color_swatch(x, y, width, height, color, z)
+
+    def _draw_color_swatch(self, x: float, y: float, width: float, height: float, color: str, z: int) -> None:
+        swatch_width = min(width * 0.62, 0.014)
+        swatch_height = min(height * 0.46, 0.014)
+        self._add_patch(
+            x + (width - swatch_width) / 2,
+            y - swatch_height / 2,
+            swatch_width,
+            swatch_height,
+            face=color,
+            edge="#5f5f5f",
+            line=0.35,
+            z=z,
+        )
+
+    def _draw_outline_box(self, x: float, y: float, width: float, height: float, z: int) -> None:
+        box_width = width * 0.52
+        box_height = height * 0.42
+        self._add_patch(
+            x + (width - box_width) / 2,
+            y - box_height / 2,
+            box_width,
+            box_height,
+            face="none",
+            edge="#202020",
+            line=0.8,
+            z=z,
+        )
+
+    def _draw_x_icon(self, x: float, y: float, width: float, height: float, z: int, *, color: str = "#202020") -> None:
+        left = x + width * 0.28
+        right = x + width * 0.72
+        top = y + height * 0.18
+        bottom = y - height * 0.18
+        self._add_line([left, right], [top, bottom], color=color, width=1.0, z=z)
+        self._add_line([left, right], [bottom, top], color=color, width=1.0, z=z)
+
     def _menu_width(self, entries) -> float:
         labels = [item[0] for item in entries if item is not None]
         longest = max((len(label) for label in labels), default=8)
-        return max(0.15, min(0.22, 0.07 + longest * 0.008))
+        return max(0.18, min(0.25, 0.105 + longest * 0.008))
 
     def _add_patch(self, x, y, width, height, *, face, edge, line, z):
         patch = Rectangle(
@@ -548,6 +787,41 @@ class MatlabContextMenu:
         patch._remove_method = self.fig.patches.remove
         self._artists.append(patch)
         return patch
+
+    def _add_line(self, xs, ys, *, color, width, z, style="-"):
+        line = Line2D(
+            xs,
+            ys,
+            transform=self.fig.transFigure,
+            color=color,
+            linewidth=width,
+            linestyle=style,
+            solid_capstyle="round",
+            zorder=z,
+        )
+        self.fig.lines.append(line)
+        line._remove_method = self.fig.lines.remove
+        self._artists.append(line)
+        return line
+
+    def _add_marker(self, x, y, marker, *, color, size, z, fill=None):
+        marker_face = color if fill is None else fill
+        line = Line2D(
+            [x],
+            [y],
+            transform=self.fig.transFigure,
+            marker=marker,
+            markersize=size,
+            markeredgecolor=color,
+            markerfacecolor=marker_face,
+            color=color,
+            linestyle="None",
+            zorder=z,
+        )
+        self.fig.lines.append(line)
+        line._remove_method = self.fig.lines.remove
+        self._artists.append(line)
+        return line
 
     def _add_text(self, x, y, label, *, ha, size, color, z):
         text = self.fig.text(

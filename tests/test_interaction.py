@@ -98,6 +98,29 @@ class FakeAxes:
         self.autoscale_clim_calls = 0
 
 
+class FakeScreenToDataTransform:
+    def __init__(self, x0=0.0, x_scale=0.1, y0=-1.0, y_scale=0.02):
+        self.x0 = x0
+        self.x_scale = x_scale
+        self.y0 = y0
+        self.y_scale = y_scale
+
+    def transform(self, point):
+        x, y = point
+        return (self.x0 + x * self.x_scale, self.y0 + y * self.y_scale)
+
+    def frozen(self):
+        return self
+
+
+class FakeDataTransform:
+    def __init__(self, screen_to_data):
+        self._screen_to_data = screen_to_data
+
+    def inverted(self):
+        return self._screen_to_data
+
+
 class FakePlotter(MatlabLikeAxesBase):
     def __init__(self, axes=None):
         super().__init__(axes)
@@ -4143,6 +4166,20 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(plotter.ylim_mode, "manual")
         self.assertEqual(len(plotter.view_stack), 1)
 
+    def test_pan_drag_uses_press_transform_for_stable_screen_delta(self):
+        axes = FakeAxes()
+        axes.transData = FakeDataTransform(FakeScreenToDataTransform())
+        plotter = FakePlotter(axes)
+        plotter.set_mode(InteractionMode.PAN)
+
+        plotter.on_mouse_press(PointerEvent(axes=axes, x=20.0, y=50.0, xdata=2.0, ydata=0.0, button=MouseButton.LEFT))
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=30.0, y=75.0, xdata=3.0, ydata=0.5, button=MouseButton.LEFT))
+        first_limits = axes.limits
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=30.0, y=75.0, xdata=2.0, ydata=0.0, button=MouseButton.LEFT))
+
+        self.assertEqual(first_limits, AxesLimits((-1.0, 9.0), (-1.5, 0.5)))
+        self.assertEqual(axes.limits, first_limits)
+
     def test_left_double_click_homes_and_does_not_start_tool_drag(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
@@ -6419,4 +6456,3 @@ if __name__ == "__main__":
 
         with self.assertRaisesRegex(ValueError, "fontangle"):
             plotter.fontangle("invalid")
-
