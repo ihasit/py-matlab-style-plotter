@@ -1563,19 +1563,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         spines = getattr(axes, "spines", None)
         if xaxis is None and not spines:
             return False
+        ticks_location = self._matplotlib_axis_position(axes, location, lower="bottom", upper="top")
         if location == "origin":
             self._set_spine_position(spines, "bottom", ("data", 0))
             self._set_spine_visible(spines, "bottom", True)
             self._set_spine_visible(spines, "top", False)
-            self._call_axis_method(xaxis, "set_ticks_position", "bottom")
-            self._call_axis_method(xaxis, "set_label_position", "bottom")
+            self._call_axis_method(xaxis, "set_ticks_position", ticks_location)
+            self._call_axis_method(xaxis, "set_label_position", ticks_location)
             return True
         self._set_spine_position(spines, "bottom", ("outward", 0))
         self._set_spine_position(spines, "top", ("outward", 0))
         self._set_spine_visible(spines, "bottom", True)
         self._set_spine_visible(spines, "top", True)
-        self._call_axis_method(xaxis, "set_ticks_position", location)
-        self._call_axis_method(xaxis, "set_label_position", location)
+        self._call_axis_method(xaxis, "set_ticks_position", ticks_location)
+        self._call_axis_method(xaxis, "set_label_position", ticks_location)
         return True
 
     def _set_matplotlib_y_axis_location(self, axes: Any, location: YAxisLocation) -> bool:
@@ -1583,20 +1584,30 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         spines = getattr(axes, "spines", None)
         if yaxis is None and not spines:
             return False
+        ticks_location = self._matplotlib_axis_position(axes, location, lower="left", upper="right")
         if location == "origin":
             self._set_spine_position(spines, "left", ("data", 0))
             self._set_spine_visible(spines, "left", True)
             self._set_spine_visible(spines, "right", False)
-            self._call_axis_method(yaxis, "set_ticks_position", "left")
-            self._call_axis_method(yaxis, "set_label_position", "left")
+            self._call_axis_method(yaxis, "set_ticks_position", ticks_location)
+            self._call_axis_method(yaxis, "set_label_position", ticks_location)
             return True
         self._set_spine_position(spines, "left", ("outward", 0))
         self._set_spine_position(spines, "right", ("outward", 0))
         self._set_spine_visible(spines, "left", True)
         self._set_spine_visible(spines, "right", True)
-        self._call_axis_method(yaxis, "set_ticks_position", location)
-        self._call_axis_method(yaxis, "set_label_position", location)
+        self._call_axis_method(yaxis, "set_ticks_position", ticks_location)
+        self._call_axis_method(yaxis, "set_label_position", ticks_location)
         return True
+
+    def _matplotlib_axis_position(self, axes: Any, location: str, *, lower: str, upper: str) -> str:
+        if not self.is_3d_axes(axes):
+            return lower if location == "origin" else location
+        if location in {"origin", lower}:
+            return "lower"
+        if location == upper:
+            return "upper"
+        return location
 
     def _set_spine_position(self, spines: Any, name: str, position: Any) -> None:
         spine = spines.get(name) if spines else None
@@ -1613,7 +1624,10 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def _call_axis_method(self, axis: Any, method_name: str, value: str) -> None:
         method = getattr(axis, method_name, None)
         if method is not None:
-            method(value)
+            try:
+                method(value)
+            except ValueError:
+                pass
 
     def _get_legend(self, axes: Any) -> Any | None:
         return getattr(axes, "get_legend", lambda: None)()

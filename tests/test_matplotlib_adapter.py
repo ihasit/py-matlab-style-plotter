@@ -1996,6 +1996,22 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertFalse(axes.yaxis_inverted())
         self.assertFalse(axes.zaxis_inverted())
 
+    def test_3d_axis_locations_map_to_matplotlib_lower_upper_positions(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.set_x_axis_location(axes, "bottom")
+        plotter.set_y_axis_location(axes, "left")
+
+        self.assertEqual(axes.xaxis.ticks_position, "lower")
+        self.assertEqual(axes.yaxis.ticks_position, "lower")
+
+        plotter.set_x_axis_location(axes, "top")
+        plotter.set_y_axis_location(axes, "right")
+
+        self.assertEqual(axes.xaxis.ticks_position, "upper")
+        self.assertEqual(axes.yaxis.ticks_position, "upper")
+
     def test_xscale_yscale_zscale_map_to_matplotlib_axis_scale(self):
         axes = FakeAxes(is_3d=True)
         plotter = MatplotlibAxesPlotter(axes)
