@@ -6,7 +6,7 @@ Run with:
 
 Controls:
 
-- tool buttons toggle exclusive interaction modes
+- right-click an axes to open the MATLAB-like context menu
 - wheel zooms the axes under the pointer
 - zoom mode: click to zoom or left-drag a 2D axes to box-zoom
 - pan mode: left-drag a 2D axes, hold Shift to constrain to one direction
@@ -14,78 +14,121 @@ Controls:
 - select mode: click the nearest line, Shift/Ctrl for multi-select
 - brush mode: drag a rectangle to highlight lines with points inside it
 - mode shortcuts: n none; p, z, r, d, s, B toggle pan, zoom, rotate3d, data cursor, select, brush
-- h: home, left/right arrows: view back/forward, a/M/t/e/f/i/m/q/w/O/U/j/k: axis auto/manual/tight/equal/fill/image/normal/square/vis3d/off/on/ij/xy, 2: view(2), 3: view(3), o: hold toggle, v: selected visibility, g: grid, l: legend, x/y/b: link axes, escape: mode none
+- h: home, left/right arrows: view back/forward, a/M/t/e/f/i/m/q/w/O/U/j/k: axis auto/manual/tight/equal/fill/image/normal/square/vis3d/off/on/ij/xy, 2: view(2), 3: view(3), o: hold toggle, v: selected visibility, g: grid, l: legend, x/y/b: link axes, delete: delete selection, escape: mode none
 """
 
 from __future__ import annotations
 
 import math
-from contextlib import contextmanager
-from types import MethodType
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 from py_matlab_style_plotter import CoordinateReadout, MatplotlibAxesPlotter, MatplotlibEventBridge
 
 
-_MATLAB_TOOLITEMS = (
-    (None, None, None, None),
-    ("None", "Clear MATLAB-like interaction mode", "hand", "matlab_none"),
-    ("Pan", "MATLAB-like pan mode", "move", "matlab_pan"),
-    ("Zoom", "MATLAB-like zoom mode", "zoom_to_rect", "matlab_zoom"),
-    ("Rotate3D", "MATLAB-like rotate3d mode", "move", "matlab_rotate3d"),
-    ("Cursor", "MATLAB-like data cursor mode", "help", "matlab_data_cursor"),
-    ("Select", "MATLAB-like select mode", "hand", "matlab_select"),
-    ("Brush", "MATLAB-like brush mode", "zoom_to_rect", "matlab_brush"),
-    (None, None, None, None),
-    ("Auto", "axis auto", "subplots", "matlab_axis_auto"),
-    ("Tight", "axis tight", "subplots", "matlab_axis_tight"),
-    ("Hold", "Toggle hold", "filesave", "matlab_hold"),
+_MATLAB_MENU_ITEMS = (
+    ("None", "matlab_none"),
+    ("Pan", "matlab_pan"),
+    ("Zoom", "matlab_zoom"),
+    ("Rotate3D", "matlab_rotate3d"),
+    ("Cursor", "matlab_data_cursor"),
+    ("Select", "matlab_select"),
+    ("Brush", "matlab_brush"),
+    None,
+    (
+        "Marker",
+        (
+            ("None", "matlab_marker_none"),
+            ("Circle", "matlab_marker_circle"),
+            ("Square", "matlab_marker_square"),
+            ("Triangle", "matlab_marker_triangle"),
+            ("X", "matlab_marker_x"),
+            ("Plus", "matlab_marker_plus"),
+            ("Point", "matlab_marker_point"),
+        ),
+    ),
+    (
+        "Line Style",
+        (
+            ("Solid", "matlab_line_solid"),
+            ("Dashed", "matlab_line_dashed"),
+            ("Dash-dot", "matlab_line_dashdot"),
+            ("Dotted", "matlab_line_dotted"),
+            ("None", "matlab_line_none"),
+        ),
+    ),
+    (
+        "Color",
+        (
+            ("Blue", "matlab_color_blue"),
+            ("Orange", "matlab_color_orange"),
+            ("Yellow", "matlab_color_yellow"),
+            ("Purple", "matlab_color_purple"),
+            ("Green", "matlab_color_green"),
+            ("Cyan", "matlab_color_cyan"),
+            ("Red", "matlab_color_red"),
+            ("Black", "matlab_color_black"),
+        ),
+    ),
+    None,
+    (
+        "View",
+        (
+            ("Home", "matlab_home"),
+            ("Back", "matlab_back"),
+            ("Forward", "matlab_forward"),
+            None,
+            ("View 2-D", "matlab_view_2"),
+            ("View 3-D", "matlab_view_3"),
+        ),
+    ),
+    (
+        "Axis",
+        (
+            ("Auto", "matlab_axis_auto"),
+            ("Manual", "matlab_axis_manual"),
+            ("Tight", "matlab_axis_tight"),
+            ("Equal", "matlab_axis_equal"),
+            ("Fill", "matlab_axis_fill"),
+            ("Image", "matlab_axis_image"),
+            ("Normal", "matlab_axis_normal"),
+            ("Square", "matlab_axis_square"),
+            ("Vis3D", "matlab_axis_vis3d"),
+            None,
+            ("Off", "matlab_axis_off"),
+            ("On", "matlab_axis_on"),
+            ("IJ", "matlab_axis_ij"),
+            ("XY", "matlab_axis_xy"),
+        ),
+    ),
+    (
+        "Display",
+        (
+            ("Hold", "matlab_hold"),
+            ("Grid", "matlab_grid"),
+            ("Legend", "matlab_legend"),
+            ("Box", "matlab_box"),
+            ("Colorbar", "matlab_colorbar"),
+        ),
+    ),
+    (
+        "Link Axes",
+        (
+            ("Link X", "matlab_link_x"),
+            ("Link Y", "matlab_link_y"),
+            ("Link X/Y", "matlab_link_xy"),
+        ),
+    ),
+    (
+        "Selection",
+        (
+            ("Hide Selected", "matlab_selected_visibility"),
+            ("Clear Selection", "matlab_clear_selection"),
+            ("Delete", "matlab_delete_selected"),
+        ),
+    ),
 )
-_MATLAB_TOOL_METHODS = tuple(item[3] for item in _MATLAB_TOOLITEMS if item[3] is not None)
-_MISSING = object()
-
-
-@contextmanager
-def matlab_style_toolbar():
-    toolbar_class = _current_toolbar_class()
-    if toolbar_class is None or getattr(toolbar_class, "_py_matlab_style_extended", False):
-        yield
-        return
-
-    original = toolbar_class.toolitems
-    original_methods = {name: getattr(toolbar_class, name, _MISSING) for name in _MATLAB_TOOL_METHODS}
-    toolbar_class.toolitems = original + _MATLAB_TOOLITEMS
-    for method_name in _MATLAB_TOOL_METHODS:
-        setattr(toolbar_class, method_name, _make_toolbar_method(method_name))
-    toolbar_class._py_matlab_style_extended = True
-    try:
-        yield
-    finally:
-        toolbar_class.toolitems = original
-        for method_name, method in original_methods.items():
-            if method is _MISSING:
-                delattr(toolbar_class, method_name)
-            else:
-                setattr(toolbar_class, method_name, method)
-        toolbar_class._py_matlab_style_extended = False
-
-
-def _make_toolbar_method(method_name):
-    def toolbar_method(self, *args):
-        action = getattr(getattr(self, "_actions", None), method_name, None)
-        if action is not None:
-            action(*args)
-
-    return toolbar_method
-
-
-def _current_toolbar_class():
-    get_backend_mod = getattr(plt, "_get_backend_mod", None)
-    if get_backend_mod is None:
-        return None
-    manager_class = getattr(get_backend_mod(), "FigureManager", None)
-    return getattr(manager_class, "_toolbar2_class", None)
 
 
 class DemoPlotter(MatplotlibAxesPlotter):
@@ -122,6 +165,17 @@ class DemoPlotter(MatplotlibAxesPlotter):
 
 
 class MatlabToolbarActions:
+    _COLORS = {
+        "blue": (0.0, 0.4470, 0.7410),
+        "orange": (0.8500, 0.3250, 0.0980),
+        "yellow": (0.9290, 0.6940, 0.1250),
+        "purple": (0.4940, 0.1840, 0.5560),
+        "green": (0.4660, 0.6740, 0.1880),
+        "cyan": (0.3010, 0.7450, 0.9330),
+        "red": (0.6350, 0.0780, 0.1840),
+        "black": (0.0, 0.0, 0.0),
+    }
+
     def __init__(self, bridge: MatplotlibEventBridge, plotter: DemoPlotter) -> None:
         self.bridge = bridge
         self.plotter = plotter
@@ -147,25 +201,447 @@ class MatlabToolbarActions:
     def matlab_brush(self, *_args) -> None:
         self.bridge.toggle_mode("brush")
 
+    def matlab_home(self, *_args) -> None:
+        self.plotter.home()
+
+    def matlab_back(self, *_args) -> None:
+        self.plotter.back()
+
+    def matlab_forward(self, *_args) -> None:
+        self.plotter.forward()
+
+    def matlab_view_2(self, *_args) -> None:
+        self.bridge.apply_view(2)
+
+    def matlab_view_3(self, *_args) -> None:
+        self.bridge.apply_view(3)
+
     def matlab_axis_auto(self, *_args) -> None:
         self.plotter.axis("auto")
+
+    def matlab_axis_manual(self, *_args) -> None:
+        self.plotter.axis("manual")
 
     def matlab_axis_tight(self, *_args) -> None:
         self.plotter.axis("tight")
 
+    def matlab_axis_equal(self, *_args) -> None:
+        self.plotter.axis("equal")
+
+    def matlab_axis_fill(self, *_args) -> None:
+        self.plotter.axis("fill")
+
+    def matlab_axis_image(self, *_args) -> None:
+        self.plotter.axis("image")
+
+    def matlab_axis_normal(self, *_args) -> None:
+        self.plotter.axis("normal")
+
+    def matlab_axis_square(self, *_args) -> None:
+        self.plotter.axis("square")
+
+    def matlab_axis_vis3d(self, *_args) -> None:
+        self.plotter.axis("vis3d")
+
+    def matlab_axis_off(self, *_args) -> None:
+        self.plotter.axis("off")
+
+    def matlab_axis_on(self, *_args) -> None:
+        self.plotter.axis("on")
+
+    def matlab_axis_ij(self, *_args) -> None:
+        self.plotter.axis("ij")
+
+    def matlab_axis_xy(self, *_args) -> None:
+        self.plotter.axis("xy")
+
     def matlab_hold(self, *_args) -> None:
         self.plotter.hold("toggle")
 
+    def matlab_grid(self, *_args) -> None:
+        self.plotter.grid("toggle")
+
+    def matlab_legend(self, *_args) -> None:
+        self.plotter.legend("toggle")
+
+    def matlab_box(self, *_args) -> None:
+        self.plotter.box("toggle")
+
+    def matlab_colorbar(self, *_args) -> None:
+        self.plotter.colorbar("toggle")
+
+    def matlab_link_x(self, *_args) -> None:
+        self.plotter.toggle_link_x_axes()
+
+    def matlab_link_y(self, *_args) -> None:
+        self.plotter.toggle_link_y_axes()
+
+    def matlab_link_xy(self, *_args) -> None:
+        self.plotter.toggle_link_xy_axes()
+
+    def matlab_marker_none(self, *_args) -> None:
+        self._set_line_property("marker", "None")
+
+    def matlab_marker_circle(self, *_args) -> None:
+        self._set_line_property("marker", "o")
+
+    def matlab_marker_square(self, *_args) -> None:
+        self._set_line_property("marker", "s")
+
+    def matlab_marker_triangle(self, *_args) -> None:
+        self._set_line_property("marker", "^")
+
+    def matlab_marker_x(self, *_args) -> None:
+        self._set_line_property("marker", "x")
+
+    def matlab_marker_plus(self, *_args) -> None:
+        self._set_line_property("marker", "+")
+
+    def matlab_marker_point(self, *_args) -> None:
+        self._set_line_property("marker", ".")
+
+    def matlab_line_solid(self, *_args) -> None:
+        self._set_line_property("linestyle", "-")
+
+    def matlab_line_dashed(self, *_args) -> None:
+        self._set_line_property("linestyle", "--")
+
+    def matlab_line_dashdot(self, *_args) -> None:
+        self._set_line_property("linestyle", "-.")
+
+    def matlab_line_dotted(self, *_args) -> None:
+        self._set_line_property("linestyle", ":")
+
+    def matlab_line_none(self, *_args) -> None:
+        self._set_line_property("linestyle", "None")
+
+    def matlab_color_blue(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["blue"])
+
+    def matlab_color_orange(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["orange"])
+
+    def matlab_color_yellow(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["yellow"])
+
+    def matlab_color_purple(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["purple"])
+
+    def matlab_color_green(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["green"])
+
+    def matlab_color_cyan(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["cyan"])
+
+    def matlab_color_red(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["red"])
+
+    def matlab_color_black(self, *_args) -> None:
+        self._set_line_property("color", self._COLORS["black"])
+
+    def matlab_selected_visibility(self, *_args) -> None:
+        self.plotter.toggle_selected_visibility()
+
+    def matlab_clear_selection(self, *_args) -> None:
+        self.plotter.clear_selection()
+
+    def matlab_delete_selected(self, *_args) -> None:
+        self.plotter.handle_delete_key()
+
+    def _set_line_property(self, name, value):
+        lines = self._target_lines()
+        if not lines:
+            return
+        setter_name = f"set_{name}"
+        axes_to_draw = set()
+        for line in lines:
+            setter = getattr(line, setter_name, None)
+            if setter is None:
+                continue
+            setter(value)
+            axes = getattr(line, "axes", None)
+            if axes is not None:
+                axes_to_draw.add(axes)
+        for axes in axes_to_draw:
+            self.plotter._draw_idle(axes)
+
+    def _target_lines(self):
+        selected = [state.line for state in self.plotter.selected_lines]
+        if selected:
+            return selected
+        axes = self.plotter.active_axes or self.plotter.axes
+        return list(getattr(axes, "lines", ())) if axes is not None else []
+
+
+class MatlabContextMenu:
+    """Figure-level context menu that does not create Matplotlib Axes."""
+
+    def __init__(self, fig, actions: MatlabToolbarActions, plotter: DemoPlotter) -> None:
+        self.fig = fig
+        self.actions = actions
+        self.plotter = plotter
+        self._artists = []
+        self._items = []
+        self._submenu_parent = None
+        self._hover_patch = None
+
+    def _open(self, x: float, y: float, axes) -> None:
+        self.close()
+        self.plotter.set_active_axes(axes)
+        self._draw_menu(_MATLAB_MENU_ITEMS, x, y, level=0)
+        self.fig.canvas.draw_idle()
+
+    def close(self) -> None:
+        if not self._artists:
+            return
+        for artist in list(self._artists):
+            artist.remove()
+        self._artists.clear()
+        self._items.clear()
+        self._submenu_parent = None
+        self._hover_patch = None
+        self.fig.canvas.draw_idle()
+
+    def _draw_menu(self, items, x: float, y: float, *, level: int, parent_patch=None) -> None:
+        entries = list(items)
+        row_height = 0.034
+        separator_height = 0.009
+        padding_x = 0.014
+        padding_y = 0.006
+        menu_width = self._menu_width(entries)
+        menu_height = padding_y * 2 + sum(separator_height if item is None else row_height for item in entries)
+        x = min(max(x, 0.01), 0.99 - menu_width)
+        y = min(max(y, menu_height + 0.01), 0.99)
+        background = self._add_patch(
+            x,
+            y - menu_height,
+            menu_width,
+            menu_height,
+            face="#ffffff",
+            edge="#6f6f6f",
+            line=0.8,
+            z=20_000 + level * 100,
+        )
+        current_y = y - padding_y
+        for item in entries:
+            if item is None:
+                sep_y = current_y - separator_height / 2
+                self._add_patch(
+                    x + 0.006,
+                    sep_y,
+                    menu_width - 0.012,
+                    0.001,
+                    face="#d0d0d0",
+                    edge="#d0d0d0",
+                    line=0.0,
+                    z=20_002 + level * 100,
+                )
+                current_y -= separator_height
+                continue
+            label, action_or_submenu = item
+            item_y = current_y - row_height
+            patch = self._add_patch(
+                x,
+                item_y,
+                menu_width,
+                row_height,
+                face="#ffffff",
+                edge="#ffffff",
+                line=0.0,
+                z=20_001 + level * 100,
+            )
+            self._add_text(
+                x + padding_x,
+                item_y + row_height / 2,
+                label,
+                ha="left",
+                size=8,
+                color="#1f1f1f",
+                z=20_003 + level * 100,
+            )
+            submenu = action_or_submenu if isinstance(action_or_submenu, tuple) else None
+            method_name = None if submenu is not None else action_or_submenu
+            if submenu is not None:
+                self._add_text(
+                    x + menu_width - 0.014,
+                    item_y + row_height / 2,
+                    ">",
+                    ha="right",
+                    size=8,
+                    color="#404040",
+                    z=20_003 + level * 100,
+                )
+            else:
+                self._draw_menu_sample(action_or_submenu, x, item_y, menu_width, row_height, level)
+            self._items.append(
+                {
+                    "patch": patch,
+                    "method": method_name,
+                    "submenu": submenu,
+                    "level": level,
+                    "parent": parent_patch,
+                    "menu_x": x,
+                    "menu_y": y - menu_height,
+                    "menu_width": menu_width,
+                    "menu_height": menu_height,
+                }
+            )
+            current_y -= row_height
+
+    def _draw_menu_sample(self, method_name: str, x: float, y: float, width: float, height: float, level: int):
+        sample_x = x + width - 0.044
+        sample_y = y + height / 2
+        if method_name.startswith("matlab_color_"):
+            color_name = method_name.removeprefix("matlab_color_")
+            color = self.actions._COLORS.get(color_name)
+            if color is not None:
+                self._add_patch(
+                    sample_x,
+                    sample_y - 0.007,
+                    0.022,
+                    0.014,
+                    face=color,
+                    edge="#5f5f5f",
+                    line=0.4,
+                    z=20_004 + level * 100,
+                )
+            return
+        if method_name.startswith("matlab_line_") and method_name != "matlab_line_none":
+            line_text = {
+                "matlab_line_solid": "----",
+                "matlab_line_dashed": "- - -",
+                "matlab_line_dashdot": "- . -",
+                "matlab_line_dotted": ". . .",
+            }.get(method_name)
+            if line_text:
+                self._add_text(sample_x, sample_y, line_text, ha="left", size=8, color="#202020", z=20_004 + level * 100)
+            return
+        if method_name.startswith("matlab_marker_") and method_name != "matlab_marker_none":
+            marker_text = {
+                "matlab_marker_circle": "o",
+                "matlab_marker_square": "s",
+                "matlab_marker_triangle": "^",
+                "matlab_marker_x": "x",
+                "matlab_marker_plus": "+",
+                "matlab_marker_point": ".",
+            }.get(method_name)
+            if marker_text:
+                self._add_text(sample_x + 0.012, sample_y, marker_text, ha="center", size=9, color="#202020", z=20_004 + level * 100)
+
+    def _menu_width(self, entries) -> float:
+        labels = [item[0] for item in entries if item is not None]
+        longest = max((len(label) for label in labels), default=8)
+        return max(0.15, min(0.22, 0.07 + longest * 0.008))
+
+    def _add_patch(self, x, y, width, height, *, face, edge, line, z):
+        patch = Rectangle(
+            (x, y),
+            width,
+            height,
+            transform=self.fig.transFigure,
+            facecolor=face,
+            edgecolor=edge,
+            linewidth=line,
+            zorder=z,
+        )
+        self.fig.patches.append(patch)
+        patch._remove_method = self.fig.patches.remove
+        self._artists.append(patch)
+        return patch
+
+    def _add_text(self, x, y, label, *, ha, size, color, z):
+        text = self.fig.text(
+            x,
+            y,
+            label,
+            ha=ha,
+            va="center",
+            fontsize=size,
+            color=color,
+            zorder=z,
+        )
+        self._artists.append(text)
+        return text
+
+    def _clear_submenus(self) -> None:
+        if self._submenu_parent is None:
+            return
+        keep_artists = []
+        for artist in self._artists:
+            if getattr(artist, "get_zorder", lambda: 0)() >= 20_100:
+                artist.remove()
+                continue
+            keep_artists.append(artist)
+        self._items = [item for item in self._items if item["level"] == 0]
+        self._artists = keep_artists
+        self._submenu_parent = None
+        if self._hover_patch is not None and self._hover_patch not in {item["patch"] for item in self._items}:
+            self._hover_patch = None
+
+    def _on_press(self, event) -> bool:
+        if event.x is None or event.y is None:
+            return False
+        figure_xy = self.fig.transFigure.inverted().transform((event.x, event.y))
+        if self._items:
+            for item in reversed(self._items):
+                patch = item["patch"]
+                x, y = patch.get_xy()
+                if x <= figure_xy[0] <= x + patch.get_width() and y <= figure_xy[1] <= y + patch.get_height():
+                    if self._hover_patch is not patch:
+                        if self._hover_patch is not None:
+                            self._hover_patch.set_facecolor("#ffffff")
+                        patch.set_facecolor("#dbeafe")
+                        self._hover_patch = patch
+                    if item["submenu"] is not None:
+                        self._clear_submenus()
+                        self._submenu_parent = patch
+                        self._draw_menu(
+                            item["submenu"],
+                            x + patch.get_width() - 0.002,
+                            y + patch.get_height(),
+                            level=item["level"] + 1,
+                            parent_patch=patch,
+                        )
+                        self.fig.canvas.draw_idle()
+                        return True
+                    self.close()
+                    getattr(self.actions, item["method"])()
+                    return True
+            self.close()
+            return True
+        if event.inaxes is None or not self._is_right_click(getattr(event, "button", None)):
+            return False
+        if getattr(self.plotter.mode, "value", self.plotter.mode) == "zoom":
+            return False
+        self._open(float(figure_xy[0]), float(figure_xy[1]), event.inaxes)
+        return True
+
+    def _is_right_click(self, button) -> bool:
+        if button == 3:
+            return True
+        name = getattr(button, "name", str(button)).lower()
+        return name in {"right", "button3", "mousebutton.right"}
+
+
+class ContextMenuEventBridge(MatplotlibEventBridge):
+    def __init__(self, plotter: DemoPlotter, canvas, context_menu: MatlabContextMenu) -> None:
+        super().__init__(plotter, canvas)
+        self.context_menu = context_menu
+
+    def _on_button_press(self, event) -> None:
+        if self.context_menu._on_press(event):
+            return
+        super()._on_button_press(event)
+
 
 def main() -> None:
-    with matlab_style_toolbar():
-        fig = plt.figure(figsize=(10, 5))
+    fig = plt.figure(figsize=(10, 5.4))
     ax2d = fig.add_subplot(1, 2, 1)
     ax3d = fig.add_subplot(1, 2, 2, projection="3d")
 
     xs = [i * 0.05 for i in range(240)]
-    ax2d.plot(xs, [math.sin(x) for x in xs], label="sin")
-    ax2d.plot(xs, [math.cos(x) for x in xs], label="cos")
+    ax2d.plot(xs, [math.sin(x) for x in xs], label="sin", marker="o", markevery=16)
+    ax2d.plot(xs, [math.cos(x) for x in xs], label="cos", marker="s", markevery=16)
     ax2d.set_title("2D axes")
     ax2d.grid(True)
     ax2d.legend(loc="upper right")
@@ -179,13 +655,12 @@ def main() -> None:
 
     status_text = fig.text(0.08, 0.015, "", ha="left", va="center", fontsize=9)
     plotter = DemoPlotter(ax2d, status_text)
-    bridge = MatplotlibEventBridge(plotter, fig.canvas)
+    actions = MatlabToolbarActions(None, plotter)
+    context_menu = MatlabContextMenu(fig, actions, plotter)
+    bridge = ContextMenuEventBridge(plotter, fig.canvas, context_menu)
+    actions.bridge = bridge
     bridge.connect()
-    toolbar = getattr(getattr(fig.canvas, "manager", None), "toolbar", None)
-    if toolbar is not None:
-        toolbar._actions = MatlabToolbarActions(bridge, plotter)
-        for method_name in _MATLAB_TOOL_METHODS:
-            setattr(toolbar, method_name, MethodType(_make_toolbar_method(method_name), toolbar))
+    fig._py_matlab_style_context_menu = context_menu
     plotter.push_current_view(ax2d)
     plotter.set_active_axes(ax3d)
     plotter.push_current_view(ax3d)
