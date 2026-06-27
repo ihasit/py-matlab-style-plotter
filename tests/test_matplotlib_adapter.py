@@ -8,6 +8,7 @@ from py_matlab_style_plotter import (
     CoordinateReadout,
     DataTip,
     MatplotlibAxesPlotter,
+    SelectedDataTipState,
     SelectedLineState,
 )
 
@@ -17,10 +18,17 @@ class FakeAnnotation:
         self.label = label
         self.xy = xy
         self.removed = False
+        self.visible = True
         self.kwargs = {}
 
     def remove(self):
         self.removed = True
+
+    def get_visible(self):
+        return self.visible
+
+    def set_visible(self, value):
+        self.visible = value
 
 
 class FakePatch:
@@ -76,6 +84,9 @@ class FakeScatter:
         self.removed = True
         if self.axes is not None and self in self.axes.collections:
             self.axes.collections.remove(self)
+
+    def get_visible(self):
+        return self.visible
 
     def set_visible(self, value):
         self.visible = value
@@ -282,6 +293,7 @@ class FakeAxes:
         self.camera_position = (1.0, 2.0, 3.0) if is_3d else None
         self.camera_target = (4.0, 5.0, 6.0) if is_3d else None
         self.camera_up_vector = (0.0, 0.0, 1.0) if is_3d else None
+        self.disable_mouse_rotation_count = 0
         self._proj_type = "ortho"
         self.plot_calls = []
         self.errorbar_calls = []
@@ -354,13 +366,18 @@ class FakeAxes:
         self.errorbar_calls.append((tuple(x), tuple(y), yerr, kwargs))
         return line
 
-    def scatter(self, x, y, **kwargs):
-        collection = FakeScatter(self, (list(x), list(y)), kwargs)
+    def scatter(self, x, y, z=None, **kwargs):
+        args = (list(x), list(y)) if z is None else (list(x), list(y), list(z))
+        collection = FakeScatter(self, args, kwargs)
         collection.x = tuple(x)
         collection.y = tuple(y)
+        collection.z = None if z is None else tuple(z)
         collection.kwargs = kwargs
         self.collections.append(collection)
-        self.scatter_calls.append((tuple(x), tuple(y), kwargs))
+        if z is None:
+            self.scatter_calls.append((tuple(x), tuple(y), kwargs))
+        else:
+            self.scatter_calls.append((tuple(x), tuple(y), tuple(z), kwargs))
         return collection
 
     def stem(self, x, y, *args, **kwargs):
@@ -669,6 +686,9 @@ class FakeAxes:
         self.lines = lines
         for line in lines:
             line.axes = self
+
+    def disable_mouse_rotation(self):
+        self.disable_mouse_rotation_count += 1
 
     def grid(self, visible, which="major", axis="both"):
         if which == "minor":
@@ -1273,6 +1293,9 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertIsNone(tip.z)
         self.assertEqual(tip.label, "Series: quad\nX: 2\nY: 4\nIndex: 2")
         self.assertEqual(axes.annotations[0].label, tip.label)
+        self.assertIs(tip.marker, axes.collections[0])
+        self.assertEqual(tip.marker.args[:2], ([2.0], [4.0]))
+        self.assertEqual(tip.marker.kwargs["label"], "_matlab_data_tip_marker")
         self.assertEqual(axes.figure.canvas.draw_count, 1)
 
     def test_create_data_tip_includes_3d_z_value(self):
@@ -1289,6 +1312,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(tip.z, 1.5)
         self.assertEqual(tip.label, "Series: space\nX: 2\nY: 4\nZ: 1.5\nIndex: 2")
         self.assertEqual(axes.annotations[0].label, tip.label)
+        self.assertEqual(tip.marker.args[:3], ([2.0], [4.0], [1.5]))
 
     def test_create_data_tip_ignores_duplicate_line_point(self):
         axes = FakeAxes()
@@ -1374,6 +1398,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter.clear_data_tips(axes1)
 
         self.assertTrue(axes1.annotations[0].removed)
+        self.assertTrue(plotter.data_tips[0].marker in axes2.collections)
         self.assertFalse(axes2.annotations[0].removed)
         self.assertEqual(len(plotter.data_tips), 1)
         self.assertIs(plotter.data_tips[0].axes, axes2)
@@ -1403,6 +1428,66 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(line1.get_alpha(), 1.0)
         self.assertEqual(line1.get_zorder(), 1004.0)
         self.assertEqual(axes.figure.canvas.draw_count, 1)
+
+    def test_select_nearest_artist_can_select_data_tip_marker(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0], [1.0, 4.0], label="quad", linewidth=2.0)
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.create_data_tip(axes, 2.0, 4.0)
+        draw_count = axes.figure.canvas.draw_count
+
+        plotter.select_nearest_artist(axes, 2.0, 4.0, frozenset())
+
+        self.assertEqual(plotter.selected_lines, [])
+        self.assertEqual(len(plotter.selected_data_tips), 1)
+        state = plotter.selected_data_tips[0]
+        self.assertIsInstance(state, SelectedDataTipState)
+        self.assertIs(state.tip, plotter.data_tips[0])
+        self.assertIs(state.highlight, axes.collections[-1])
+        self.assertEqual(state.highlight.kwargs["label"], "_matlab_data_tip_selection")
+        self.assertEqual(line.get_linewidth(), 2.0)
+        self.assertEqual(axes.figure.canvas.draw_count, draw_count + 1)
+
+    def test_delete_selected_can_remove_selected_data_tip_without_deleting_line(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0], [1.0, 4.0], label="quad")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.create_data_tip(axes, 2.0, 4.0)
+        tip = plotter.data_tips[0]
+        plotter.select_nearest_artist(axes, 2.0, 4.0, frozenset())
+        highlight = plotter.selected_data_tips[0].highlight
+
+        deleted_count = plotter.delete_selected()
+
+        self.assertEqual(deleted_count, 1)
+        self.assertFalse(line.removed)
+        self.assertEqual(axes.lines, [line])
+        self.assertEqual(plotter.data_tips, [])
+        self.assertEqual(plotter.selected_data_tips, [])
+        self.assertTrue(tip.annotation.removed)
+        self.assertTrue(tip.marker.removed)
+        self.assertTrue(highlight.removed)
+
+    def test_toggle_selected_visibility_hides_selected_data_tip(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0], [1.0, 4.0], label="quad")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.create_data_tip(axes, 2.0, 4.0)
+        tip = plotter.data_tips[0]
+        plotter.select_nearest_artist(axes, 2.0, 4.0, frozenset())
+        highlight = plotter.selected_data_tips[0].highlight
+
+        self.assertTrue(plotter.toggle_selected_visibility())
+        self.assertFalse(tip.annotation.visible)
+        self.assertFalse(tip.marker.visible)
+        self.assertFalse(highlight.visible)
+        self.assertTrue(plotter.toggle_selected_visibility())
+        self.assertTrue(tip.annotation.visible)
+        self.assertTrue(tip.marker.visible)
+        self.assertTrue(highlight.visible)
 
     def test_select_line_is_idempotent_for_selected_line(self):
         axes = FakeAxes()
@@ -1493,7 +1578,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertTrue(plotter.is_line_selected(line))
         self.assertEqual(axes.figure.canvas.draw_count, 0)
 
-    def test_brush_box_selects_lines_with_points_inside_box(self):
+    def test_brush_box_marks_points_without_selecting_entire_lines(self):
         axes = FakeAxes()
         line1 = FakeLine([1.0, 2.0], [1.0, 2.0], label="inside")
         line2 = FakeLine([8.0, 9.0], [8.0, 9.0], label="outside")
@@ -1503,9 +1588,12 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         plotter.brush_box(axes, (0.5, 0.5), (3.5, 3.5), frozenset())
 
-        self.assertTrue(plotter.is_line_selected(line1))
+        self.assertFalse(plotter.is_line_selected(line1))
         self.assertFalse(plotter.is_line_selected(line2))
-        self.assertTrue(plotter.is_line_selected(line3))
+        self.assertFalse(plotter.is_line_selected(line3))
+        self.assertEqual({state.line for state in plotter.brushed_points}, {line1, line3})
+        self.assertEqual(line1.get_linewidth(), 2.0)
+        self.assertEqual(line3.get_linewidth(), 2.0)
 
     def test_brush_box_highlights_only_points_inside_box(self):
         axes = FakeAxes()
@@ -1523,7 +1611,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(state.artist.args[:2], ([1.0, 2.0], [1.0, 2.0]))
         self.assertIn(state.artist, axes.collections)
 
-    def test_brush_box_replaces_or_adds_selection_based_on_modifier(self):
+    def test_brush_box_replaces_or_adds_brushed_points_based_on_modifier(self):
         axes = FakeAxes()
         line1 = FakeLine([1.0], [1.0], label="a")
         line2 = FakeLine([8.0], [8.0], label="b")
@@ -1532,13 +1620,13 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter.select_line(line2)
 
         plotter.brush_box(axes, (0.0, 0.0), (2.0, 2.0), frozenset())
-        self.assertTrue(plotter.is_line_selected(line1))
+        self.assertFalse(plotter.is_line_selected(line1))
         self.assertFalse(plotter.is_line_selected(line2))
         self.assertEqual([state.line for state in plotter.brushed_points], [line1])
 
         plotter.brush_box(axes, (7.0, 7.0), (9.0, 9.0), frozenset({"shift"}))
-        self.assertTrue(plotter.is_line_selected(line1))
-        self.assertTrue(plotter.is_line_selected(line2))
+        self.assertFalse(plotter.is_line_selected(line1))
+        self.assertFalse(plotter.is_line_selected(line2))
         self.assertEqual({state.line for state in plotter.brushed_points}, {line1, line2})
 
     def test_brush_box_ignores_nonfinite_coordinates(self):
@@ -1590,13 +1678,14 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(plotter.brushed_points, [])
         self.assertTrue(scatter.removed)
 
-    def test_toggle_selected_visibility_hides_brushed_point_highlights(self):
+    def test_toggle_selected_visibility_hides_brushed_point_highlights_for_selected_lines(self):
         axes = FakeAxes()
         line = FakeLine([1.0, 2.0], [1.0, 2.0], label="a")
         axes.set_lines([line])
         plotter = MatplotlibAxesPlotter(axes)
         plotter.brush_box(axes, (0.0, 0.0), (2.0, 2.0), frozenset())
         scatter = plotter.brushed_points[0].artist
+        plotter.select_line(line)
 
         self.assertTrue(plotter.toggle_selected_visibility())
         self.assertFalse(scatter.visible)
@@ -1775,12 +1864,14 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         axes.set_lines([line])
         plotter = MatplotlibAxesPlotter(axes)
         plotter.create_data_tip(axes, 1.0, 1.0)
+        marker = plotter.data_tips[0].marker
 
         handled = plotter.handle_delete_key()
 
         self.assertTrue(handled)
         self.assertEqual(plotter.data_tips, [])
         self.assertTrue(axes.annotations[0].removed)
+        self.assertTrue(marker.removed)
 
     def test_handle_delete_key_returns_false_when_nothing_to_delete(self):
         plotter = MatplotlibAxesPlotter(FakeAxes())
@@ -2525,6 +2616,18 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(axes1.spines["left"].get_linewidth(), 1.0)
         self.assertEqual(axes2.spines["left"].get_edgecolor(), "#0072BD")
         self.assertEqual(axes2.spines["left"].get_linewidth(), 1.8)
+
+    def test_3d_axes_default_mouse_rotation_is_disabled_when_active(self):
+        axes2d = FakeAxes()
+        axes3d = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes2d)
+
+        self.assertEqual(axes2d.disable_mouse_rotation_count, 0)
+        self.assertEqual(axes3d.disable_mouse_rotation_count, 0)
+
+        plotter.set_active_axes(axes3d)
+
+        self.assertEqual(axes3d.disable_mouse_rotation_count, 1)
 
     def test_prepare_replace_reapplies_active_axes_highlight_after_cla(self):
         axes = FakeAxes(with_spines=True)

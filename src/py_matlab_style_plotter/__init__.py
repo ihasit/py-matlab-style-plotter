@@ -64,6 +64,7 @@ from .matplotlib_adapter import (
     CoordinateReadout,
     DataTip,
     MatplotlibAxesPlotter,
+    SelectedDataTipState,
     SelectedLineState,
     SpineStyle,
 )
@@ -129,6 +130,7 @@ __all__ = [
     "MatplotlibAxesPlotter",
     "MatplotlibEventBridge",
     "DataTip",
+    "SelectedDataTipState",
     "SelectedLineState",
     "CoordinateReadout",
     "ActiveAxesStyle",

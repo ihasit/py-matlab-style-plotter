@@ -44,6 +44,7 @@ class DataTip:
     axes: Any
     line: Any
     annotation: Any
+    marker: Any | None
     x: float
     y: float
     index: int
@@ -60,6 +61,14 @@ class SelectedLineState:
     alpha: float | None
     zorder: float
     visible: bool
+    highlight: Any | None = None
+
+
+@dataclass(frozen=True)
+class SelectedDataTipState:
+    """Selection state for a data cursor marker."""
+
+    tip: DataTip
     highlight: Any | None = None
 
 
@@ -109,6 +118,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._brush_box_artist: Any | None = None
         self.data_tips: list[DataTip] = []
         self.selected_lines: list[SelectedLineState] = []
+        self.selected_data_tips: list[SelectedDataTipState] = []
         self.brushed_points: list[BrushedPointsState] = []
         self.coordinate_readout: CoordinateReadout | None = None
         self.active_axes_style: ActiveAxesStyle | None = None
@@ -1067,9 +1077,6 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             self.clear_selection()
             changed = had_selection or had_brushed_points
         for line, points in brushed_points:
-            if not self.is_line_selected(line):
-                self.select_line(line)
-                changed = True
             if self._set_brushed_points(axes, line, points):
                 changed = True
         if changed and (multi_select or brushed):
@@ -1126,7 +1133,8 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             fontsize=9,
             zorder=10_001,
         )
-        self.data_tips.append(DataTip(axes, line, annotation, point_x, point_y, index, label, point_z))
+        marker = self._draw_data_tip_marker(axes, point_x, point_y, point_z)
+        self.data_tips.append(DataTip(axes, line, annotation, marker, point_x, point_y, index, label, point_z))
         self._draw_idle(axes)
 
     def has_data_tip(self, axes: Any, line: Any, index: int) -> bool:
@@ -1138,7 +1146,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if axes is not None and tip.axes is not axes:
                 remaining.append(tip)
                 continue
-            tip.annotation.remove()
+            self._remove_data_tip(tip)
             self._draw_idle(tip.axes)
         self.data_tips = remaining
 
@@ -1149,7 +1157,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if tip.line not in lines:
                 remaining.append(tip)
                 continue
-            tip.annotation.remove()
+            self._remove_data_tip(tip)
             redraw_axes.add(tip.axes)
         self.data_tips = remaining
         for axes in redraw_axes:
@@ -1164,8 +1172,21 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     ) -> None:
         if not self._is_finite_pair(x, y):
             return
-        nearest = self.find_nearest_line_point(axes, x, y)
         multi_select = bool(modifiers & {"shift", "control", "ctrl", "cmd", "super"})
+        nearest_tip = self.find_nearest_data_tip(axes, x, y)
+        if nearest_tip is not None:
+            tip, tip_x, tip_y = nearest_tip
+            if self._normalized_point_distance(axes, tip_x, tip_y, x, y) <= self.selection_pick_tolerance:
+                if self.is_data_tip_selected(tip):
+                    if multi_select:
+                        self.deselect_data_tip(tip)
+                    return
+                if not multi_select:
+                    self.clear_selection()
+                self.select_data_tip(tip)
+                self._draw_idle(axes)
+                return
+        nearest = self.find_nearest_line_point(axes, x, y)
         if nearest is None:
             if not multi_select:
                 self.clear_selection()
@@ -1183,6 +1204,27 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             self.clear_selection()
         self.select_line(line)
         self._draw_idle(axes)
+
+    def select_data_tip(self, tip: DataTip) -> None:
+        if self.is_data_tip_selected(tip):
+            return
+        self.selected_data_tips.append(SelectedDataTipState(tip, self._draw_data_tip_selection_highlight(tip)))
+
+    def deselect_data_tip(self, tip: DataTip) -> None:
+        remaining = []
+        redraw_axes = None
+        for state in self.selected_data_tips:
+            if state.tip is tip:
+                self._remove_artist(state.highlight)
+                redraw_axes = tip.axes
+            else:
+                remaining.append(state)
+        self.selected_data_tips = remaining
+        if redraw_axes is not None:
+            self._draw_idle(redraw_axes)
+
+    def is_data_tip_selected(self, tip: DataTip) -> bool:
+        return any(state.tip is tip for state in self.selected_data_tips)
 
     def select_line(self, line: Any) -> None:
         if self.is_line_selected(line):
@@ -1233,6 +1275,14 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             if line_axes is not None:
                 redraw_axes.add(line_axes)
         self.selected_lines = remaining
+        remaining_tips = []
+        for state in self.selected_data_tips:
+            if axes is not None and state.tip.axes is not axes:
+                remaining_tips.append(state)
+                continue
+            self._remove_artist(state.highlight)
+            redraw_axes.add(state.tip.axes)
+        self.selected_data_tips = remaining_tips
         if axes is None:
             redraw_axes.update(self._remove_brushed_points(lines=restored_lines if restored_lines else None))
         else:
@@ -1244,10 +1294,12 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return any(state.line is line for state in self.selected_lines)
 
     def toggle_selected_visibility(self) -> bool:
-        if not self.selected_lines:
+        if not self.selected_lines and not self.selected_data_tips:
             return False
         axes_to_redraw = set()
-        any_visible = any(bool(getattr(state.line, "get_visible", lambda: True)()) for state in self.selected_lines)
+        selected_visibility = [bool(getattr(state.line, "get_visible", lambda: True)()) for state in self.selected_lines]
+        selected_visibility.extend(bool(getattr(state.tip.annotation, "get_visible", lambda: True)()) for state in self.selected_data_tips)
+        any_visible = any(selected_visibility)
         new_visible = not any_visible
         selected_lines = {state.line for state in self.selected_lines}
         for state in self.selected_lines:
@@ -1268,29 +1320,48 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             set_visible = getattr(state.highlight, "set_visible", None)
             if set_visible is not None:
                 set_visible(new_visible)
+        for state in self.selected_data_tips:
+            for artist in (state.tip.annotation, state.tip.marker, state.highlight):
+                set_visible = getattr(artist, "set_visible", None)
+                if set_visible is not None:
+                    set_visible(new_visible)
+            axes_to_redraw.add(state.tip.axes)
         for axes in axes_to_redraw:
             self._draw_idle(axes)
         return True
 
     def delete_selected(self) -> int:
         states = list(self.selected_lines)
-        if not states:
+        tip_states = list(self.selected_data_tips)
+        if not states and not tip_states:
             return 0
         lines = {state.line for state in states}
         axes_to_redraw = {getattr(state.line, "axes", None) for state in states}
-        self.clear_data_tips_for_lines(lines)
+        if lines:
+            self.clear_data_tips_for_lines(lines)
         axes_to_redraw.update(self._remove_brushed_points(lines=lines))
         for state in states:
             self._restore_line_state(state)
             state.line.remove()
+        deleted_tips = []
+        for state in tip_states:
+            self._remove_artist(state.highlight)
+            if state.tip in self.data_tips:
+                self._remove_data_tip(state.tip)
+                deleted_tips.append(state.tip)
+                axes_to_redraw.add(state.tip.axes)
         self.selected_lines = []
+        self.selected_data_tips = []
+        if deleted_tips:
+            deleted_tip_set = set(deleted_tips)
+            self.data_tips = [tip for tip in self.data_tips if tip not in deleted_tip_set]
         for axes in axes_to_redraw:
             if axes is not None:
                 self._draw_idle(axes)
-        return len(states)
+        return len(states) + len(deleted_tips)
 
     def handle_delete_key(self) -> bool:
-        if self.selected_lines:
+        if self.selected_lines or self.selected_data_tips:
             self.delete_selected()
             return True
         if self.data_tips:
@@ -1518,7 +1589,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.restore_active_axes_highlight()
         if axes is None:
             return
+        self._disable_default_3d_mouse_rotation(axes)
         self.apply_active_axes_highlight(axes)
+
+    def _disable_default_3d_mouse_rotation(self, axes: Any) -> None:
+        if not self.is_3d_axes(axes):
+            return
+        disable_mouse_rotation = getattr(axes, "disable_mouse_rotation", None)
+        if disable_mouse_rotation is None:
+            return
+        try:
+            disable_mouse_rotation()
+        except (TypeError, ValueError, AttributeError):
+            return
 
     def apply_active_axes_highlight(self, axes: Any) -> None:
         spines = getattr(axes, "spines", None)
@@ -1574,6 +1657,21 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return None
         _, line, index, point_x, point_y, point_z = best
         return line, index, point_x, point_y, point_z
+
+    def find_nearest_data_tip(self, axes: Any, x: float, y: float) -> tuple[DataTip, float, float] | None:
+        best: tuple[float, DataTip, float, float] | None = None
+        for tip in self.data_tips:
+            if tip.axes is not axes:
+                continue
+            if not bool(getattr(tip.marker, "get_visible", lambda: True)()):
+                continue
+            distance = self._normalized_point_distance(axes, tip.x, tip.y, x, y) ** 2
+            if best is None or distance < best[0]:
+                best = (distance, tip, tip.x, tip.y)
+        if best is None:
+            return None
+        _distance, tip, tip_x, tip_y = best
+        return tip, tip_x, tip_y
 
     def find_lines_in_box(self, axes: Any, start: tuple[float, float], end: tuple[float, float]) -> list[Any]:
         return [line for line, _points in self.find_line_points_in_box(axes, start, end)]
@@ -1644,6 +1742,57 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         state.line.set_zorder(state.zorder)
         if hasattr(state.line, "set_visible"):
             state.line.set_visible(state.visible)
+
+    def _draw_data_tip_marker(self, axes: Any, x: float, y: float, z: float | None) -> Any | None:
+        scatter = getattr(axes, "scatter", None)
+        if scatter is None:
+            return None
+        kwargs = {
+            "s": 52.0,
+            "marker": "s",
+            "facecolors": "#FFD400",
+            "edgecolors": "#202020",
+            "linewidths": 0.8,
+            "zorder": 10_002,
+            "label": "_matlab_data_tip_marker",
+        }
+        try:
+            if z is not None and self.is_3d_axes(axes):
+                return scatter([x], [y], [z], **kwargs)
+            return scatter([x], [y], **kwargs)
+        except (TypeError, ValueError, AttributeError):
+            return None
+
+    def _draw_data_tip_selection_highlight(self, tip: DataTip) -> Any | None:
+        scatter = getattr(tip.axes, "scatter", None)
+        if scatter is None:
+            return None
+        kwargs = {
+            "s": 110.0,
+            "marker": "s",
+            "facecolors": "none",
+            "edgecolors": "#0072BD",
+            "linewidths": 1.8,
+            "zorder": 10_003,
+            "label": "_matlab_data_tip_selection",
+        }
+        try:
+            if tip.z is not None and self.is_3d_axes(tip.axes):
+                return scatter([tip.x], [tip.y], [tip.z], **kwargs)
+            return scatter([tip.x], [tip.y], **kwargs)
+        except (TypeError, ValueError, AttributeError):
+            return None
+
+    def _remove_data_tip(self, tip: DataTip) -> None:
+        self._remove_artist(tip.annotation)
+        self._remove_artist(tip.marker)
+        remaining = []
+        for state in self.selected_data_tips:
+            if state.tip is tip:
+                self._remove_artist(state.highlight)
+            else:
+                remaining.append(state)
+        self.selected_data_tips = remaining
 
     def _draw_selected_line_highlight(self, line: Any, linewidth: float, zorder: float) -> Any | None:
         axes = getattr(line, "axes", None)
