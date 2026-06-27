@@ -20,11 +20,72 @@ Controls:
 from __future__ import annotations
 
 import math
+from contextlib import contextmanager
+from types import MethodType
 
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
 
 from py_matlab_style_plotter import CoordinateReadout, MatplotlibAxesPlotter, MatplotlibEventBridge
+
+
+_MATLAB_TOOLITEMS = (
+    (None, None, None, None),
+    ("None", "Clear MATLAB-like interaction mode", "hand", "matlab_none"),
+    ("Pan", "MATLAB-like pan mode", "move", "matlab_pan"),
+    ("Zoom", "MATLAB-like zoom mode", "zoom_to_rect", "matlab_zoom"),
+    ("Rotate3D", "MATLAB-like rotate3d mode", "move", "matlab_rotate3d"),
+    ("Cursor", "MATLAB-like data cursor mode", "help", "matlab_data_cursor"),
+    ("Select", "MATLAB-like select mode", "hand", "matlab_select"),
+    ("Brush", "MATLAB-like brush mode", "zoom_to_rect", "matlab_brush"),
+    (None, None, None, None),
+    ("Auto", "axis auto", "subplots", "matlab_axis_auto"),
+    ("Tight", "axis tight", "subplots", "matlab_axis_tight"),
+    ("Hold", "Toggle hold", "filesave", "matlab_hold"),
+)
+_MATLAB_TOOL_METHODS = tuple(item[3] for item in _MATLAB_TOOLITEMS if item[3] is not None)
+_MISSING = object()
+
+
+@contextmanager
+def matlab_style_toolbar():
+    toolbar_class = _current_toolbar_class()
+    if toolbar_class is None or getattr(toolbar_class, "_py_matlab_style_extended", False):
+        yield
+        return
+
+    original = toolbar_class.toolitems
+    original_methods = {name: getattr(toolbar_class, name, _MISSING) for name in _MATLAB_TOOL_METHODS}
+    toolbar_class.toolitems = original + _MATLAB_TOOLITEMS
+    for method_name in _MATLAB_TOOL_METHODS:
+        setattr(toolbar_class, method_name, _make_toolbar_method(method_name))
+    toolbar_class._py_matlab_style_extended = True
+    try:
+        yield
+    finally:
+        toolbar_class.toolitems = original
+        for method_name, method in original_methods.items():
+            if method is _MISSING:
+                delattr(toolbar_class, method_name)
+            else:
+                setattr(toolbar_class, method_name, method)
+        toolbar_class._py_matlab_style_extended = False
+
+
+def _make_toolbar_method(method_name):
+    def toolbar_method(self, *args):
+        action = getattr(getattr(self, "_actions", None), method_name, None)
+        if action is not None:
+            action(*args)
+
+    return toolbar_method
+
+
+def _current_toolbar_class():
+    get_backend_mod = getattr(plt, "_get_backend_mod", None)
+    if get_backend_mod is None:
+        return None
+    manager_class = getattr(get_backend_mod(), "FigureManager", None)
+    return getattr(manager_class, "_toolbar2_class", None)
 
 
 class DemoPlotter(MatplotlibAxesPlotter):
@@ -60,8 +121,45 @@ class DemoPlotter(MatplotlibAxesPlotter):
         self.status_text.set_text(" | ".join(parts))
 
 
+class MatlabToolbarActions:
+    def __init__(self, bridge: MatplotlibEventBridge, plotter: DemoPlotter) -> None:
+        self.bridge = bridge
+        self.plotter = plotter
+
+    def matlab_none(self, *_args) -> None:
+        self.bridge.set_mode("none")
+
+    def matlab_pan(self, *_args) -> None:
+        self.bridge.toggle_mode("pan")
+
+    def matlab_zoom(self, *_args) -> None:
+        self.bridge.toggle_mode("zoom")
+
+    def matlab_rotate3d(self, *_args) -> None:
+        self.bridge.toggle_mode("rotate3d")
+
+    def matlab_data_cursor(self, *_args) -> None:
+        self.bridge.toggle_mode("data_cursor")
+
+    def matlab_select(self, *_args) -> None:
+        self.bridge.toggle_mode("select")
+
+    def matlab_brush(self, *_args) -> None:
+        self.bridge.toggle_mode("brush")
+
+    def matlab_axis_auto(self, *_args) -> None:
+        self.plotter.axis("auto")
+
+    def matlab_axis_tight(self, *_args) -> None:
+        self.plotter.axis("tight")
+
+    def matlab_hold(self, *_args) -> None:
+        self.plotter.hold("toggle")
+
+
 def main() -> None:
-    fig = plt.figure(figsize=(10, 5))
+    with matlab_style_toolbar():
+        fig = plt.figure(figsize=(10, 5))
     ax2d = fig.add_subplot(1, 2, 1)
     ax3d = fig.add_subplot(1, 2, 2, projection="3d")
 
@@ -83,42 +181,15 @@ def main() -> None:
     plotter = DemoPlotter(ax2d, status_text)
     bridge = MatplotlibEventBridge(plotter, fig.canvas)
     bridge.connect()
+    toolbar = getattr(getattr(fig.canvas, "manager", None), "toolbar", None)
+    if toolbar is not None:
+        toolbar._actions = MatlabToolbarActions(bridge, plotter)
+        for method_name in _MATLAB_TOOL_METHODS:
+            setattr(toolbar, method_name, MethodType(_make_toolbar_method(method_name), toolbar))
     plotter.push_current_view(ax2d)
     plotter.set_active_axes(ax3d)
     plotter.push_current_view(ax3d)
     plotter.set_active_axes(ax2d)
-
-    fig.subplots_adjust(bottom=0.28)
-    buttons = {
-        "None": fig.add_axes((0.04, 0.16, 0.09, 0.055)),
-        "Pan": fig.add_axes((0.15, 0.16, 0.09, 0.055)),
-        "Zoom": fig.add_axes((0.26, 0.16, 0.09, 0.055)),
-        "Rotate3D": fig.add_axes((0.37, 0.16, 0.12, 0.055)),
-        "Cursor": fig.add_axes((0.51, 0.16, 0.09, 0.055)),
-        "Select": fig.add_axes((0.62, 0.16, 0.09, 0.055)),
-        "Brush": fig.add_axes((0.73, 0.16, 0.09, 0.055)),
-        "Home": fig.add_axes((0.20, 0.075, 0.10, 0.055)),
-        "Back": fig.add_axes((0.32, 0.075, 0.10, 0.055)),
-        "Forward": fig.add_axes((0.44, 0.075, 0.11, 0.055)),
-        "Auto": fig.add_axes((0.57, 0.075, 0.10, 0.055)),
-        "Tight": fig.add_axes((0.69, 0.075, 0.10, 0.055)),
-        "Hold": fig.add_axes((0.81, 0.075, 0.10, 0.055)),
-    }
-    widgets = {label: Button(button_axes, label) for label, button_axes in buttons.items()}
-
-    widgets["None"].on_clicked(lambda _event: bridge.set_mode("none"))
-    widgets["Pan"].on_clicked(lambda _event: bridge.toggle_mode("pan"))
-    widgets["Zoom"].on_clicked(lambda _event: bridge.toggle_mode("zoom"))
-    widgets["Rotate3D"].on_clicked(lambda _event: bridge.toggle_mode("rotate3d"))
-    widgets["Cursor"].on_clicked(lambda _event: bridge.toggle_mode("data_cursor"))
-    widgets["Select"].on_clicked(lambda _event: bridge.toggle_mode("select"))
-    widgets["Brush"].on_clicked(lambda _event: bridge.toggle_mode("brush"))
-    widgets["Home"].on_clicked(lambda _event: plotter.home())
-    widgets["Back"].on_clicked(lambda _event: plotter.back())
-    widgets["Forward"].on_clicked(lambda _event: plotter.forward())
-    widgets["Auto"].on_clicked(lambda _event: plotter.axis("auto"))
-    widgets["Tight"].on_clicked(lambda _event: plotter.axis("tight"))
-    widgets["Hold"].on_clicked(lambda _event: plotter.hold("toggle"))
 
     fig.canvas.manager.set_window_title("pyMatlabStylePlotter demo")
     plt.show()

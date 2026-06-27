@@ -2232,9 +2232,28 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter.set_data_aspect_ratio(axes, (1.0, 2.0, 3.0))
         plotter.set_plot_box_aspect_ratio(axes, (3.0, 2.0, 1.0))
 
-        self.assertEqual(axes._aspect, (1.0, 2.0, 3.0))
+        self.assertEqual(axes._aspect, "auto")
         self.assertEqual(axes._box_aspect, (3.0, 2.0, 1.0))
         self.assertEqual(axes.figure.canvas.draw_count, 2)
+
+    def test_explicit_2d_data_aspect_ratio_maps_to_float_aspect(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.set_data_aspect_ratio(axes, (2.0, 3.0, 1.0))
+
+        self.assertEqual(axes._aspect, 1.5)
+        self.assertEqual(axes.figure.canvas.draw_count, 1)
+
+    def test_explicit_3d_data_aspect_ratio_maps_to_box_aspect(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.set_data_aspect_ratio(axes, (1.0, 2.0, 3.0))
+
+        self.assertEqual(axes._aspect, "auto")
+        self.assertEqual(axes._box_aspect, (1.0, 2.0, 3.0))
+        self.assertEqual(axes.figure.canvas.draw_count, 1)
 
     def test_set_clim_maps_to_matplotlib_color_limits(self):
         axes = FakeAxes()

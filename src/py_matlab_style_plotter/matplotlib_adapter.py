@@ -685,7 +685,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             canvas.draw_idle()
 
     def set_data_aspect_ratio(self, axes: Any, ratio: tuple[float, float, float]) -> None:
-        axes.set_aspect(ratio)
+        if self.is_3d_axes(axes):
+            if hasattr(axes, "set_box_aspect"):
+                axes.set_box_aspect(ratio)
+        else:
+            x_ratio = float(ratio[0]) if ratio else 1.0
+            y_ratio = float(ratio[1]) if len(ratio) > 1 else 1.0
+            axes.set_aspect(y_ratio / x_ratio if x_ratio != 0.0 else "auto")
         canvas = getattr(getattr(axes, "figure", None), "canvas", None)
         if canvas is not None:
             canvas.draw_idle()
@@ -936,21 +942,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             alpha=0.8,
             zorder=10_000,
         )
-        axes.add_patch(self._zoom_box_artist)
+        self._add_box_artist(axes, self._zoom_box_artist, x, y, x, y)
         self._draw_idle(axes)
 
     def update_zoom_box(self, axes: Any, x0: float, y0: float, x1: float, y1: float) -> None:
         if self._zoom_box_artist is None:
             return
-        self._zoom_box_artist.set_xy((min(x0, x1), min(y0, y1)))
-        self._zoom_box_artist.set_width(abs(x1 - x0))
-        self._zoom_box_artist.set_height(abs(y1 - y0))
+        self._set_box_artist_bounds(self._zoom_box_artist, axes, x0, y0, x1, y1)
         self._draw_idle(axes)
 
     def end_zoom_box(self) -> None:
         if self._zoom_box_artist is None:
             return
-        axes = getattr(self._zoom_box_artist, "axes", None)
+        axes = self._box_artist_axes(self._zoom_box_artist)
         self._zoom_box_artist.remove()
         self._zoom_box_artist = None
         if axes is not None:
@@ -974,25 +978,63 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             alpha=0.15,
             zorder=10_000,
         )
-        axes.add_patch(self._brush_box_artist)
+        self._add_box_artist(axes, self._brush_box_artist, x, y, x, y)
         self._draw_idle(axes)
 
     def update_brush_box(self, axes: Any, x0: float, y0: float, x1: float, y1: float) -> None:
         if self._brush_box_artist is None:
             return
-        self._brush_box_artist.set_xy((min(x0, x1), min(y0, y1)))
-        self._brush_box_artist.set_width(abs(x1 - x0))
-        self._brush_box_artist.set_height(abs(y1 - y0))
+        self._set_box_artist_bounds(self._brush_box_artist, axes, x0, y0, x1, y1)
         self._draw_idle(axes)
 
     def end_brush_box(self) -> None:
         if self._brush_box_artist is None:
             return
-        axes = getattr(self._brush_box_artist, "axes", None)
+        axes = self._box_artist_axes(self._brush_box_artist)
         self._brush_box_artist.remove()
         self._brush_box_artist = None
         if axes is not None:
             self._draw_idle(axes)
+
+    def _add_box_artist(self, axes: Any, artist: Any, x0: float, y0: float, x1: float, y1: float) -> None:
+        figure = getattr(axes, "figure", None)
+        if self.is_3d_axes(axes) and self._can_add_figure_overlay_box(axes):
+            artist.set_transform(figure.transFigure)
+            setattr(artist, "_py_matlab_style_overlay_axes", axes)
+            setattr(artist, "_py_matlab_style_figure_overlay", True)
+            self._set_box_artist_bounds(artist, axes, x0, y0, x1, y1)
+            figure.patches.append(artist)
+            artist._remove_method = figure.patches.remove
+            return
+        add_patch = getattr(axes, "add_patch", None)
+        if add_patch is not None:
+            add_patch(artist)
+
+    def _set_box_artist_bounds(self, artist: Any, axes: Any, x0: float, y0: float, x1: float, y1: float) -> None:
+        if getattr(artist, "_py_matlab_style_figure_overlay", False):
+            x0, y0, x1, y1 = self._data_box_to_figure_box(axes, x0, y0, x1, y1)
+        artist.set_xy((min(x0, x1), min(y0, y1)))
+        artist.set_width(abs(x1 - x0))
+        artist.set_height(abs(y1 - y0))
+
+    def _box_artist_axes(self, artist: Any) -> Any | None:
+        return getattr(artist, "_py_matlab_style_overlay_axes", None) or getattr(artist, "axes", None)
+
+    def _can_add_figure_overlay_box(self, axes: Any) -> bool:
+        figure = getattr(axes, "figure", None)
+        return (
+            figure is not None
+            and hasattr(figure, "patches")
+            and hasattr(figure, "transFigure")
+            and hasattr(getattr(figure, "transFigure"), "inverted")
+            and hasattr(axes, "transData")
+        )
+
+    def _data_box_to_figure_box(self, axes: Any, x0: float, y0: float, x1: float, y1: float) -> tuple[float, float, float, float]:
+        figure = axes.figure
+        p0, p1 = axes.transData.transform([(x0, y0), (x1, y1)])
+        f0, f1 = figure.transFigure.inverted().transform([p0, p1])
+        return float(f0[0]), float(f0[1]), float(f1[0]), float(f1[1])
 
     def brush_box(
         self,
