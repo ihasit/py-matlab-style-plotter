@@ -60,6 +60,7 @@ from .interaction import (
 )
 from .matplotlib_adapter import (
     ActiveAxesStyle,
+    BrushedPointsState,
     CoordinateReadout,
     DataTip,
     MatplotlibAxesPlotter,
@@ -131,5 +132,6 @@ __all__ = [
     "SelectedLineState",
     "CoordinateReadout",
     "ActiveAxesStyle",
+    "BrushedPointsState",
     "SpineStyle",
 ]

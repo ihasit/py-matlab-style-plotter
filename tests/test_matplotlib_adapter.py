@@ -3,6 +3,7 @@ import unittest
 from py_matlab_style_plotter import (
     ActiveAxesStyle,
     AxesLimits,
+    BrushedPointsState,
     Camera3DState,
     CoordinateReadout,
     DataTip,
@@ -61,6 +62,23 @@ class FakeMappable:
 
     def set_cmap(self, value):
         self.cmap_values.append(value)
+
+
+class FakeScatter:
+    def __init__(self, axes, args, kwargs):
+        self.axes = axes
+        self.args = args
+        self.kwargs = kwargs
+        self.removed = False
+        self.visible = True
+
+    def remove(self):
+        self.removed = True
+        if self.axes is not None and self in self.axes.collections:
+            self.axes.collections.remove(self)
+
+    def set_visible(self, value):
+        self.visible = value
 
 
 class FakeGridLine:
@@ -337,7 +355,7 @@ class FakeAxes:
         return line
 
     def scatter(self, x, y, **kwargs):
-        collection = FakeMappable()
+        collection = FakeScatter(self, (list(x), list(y)), kwargs)
         collection.x = tuple(x)
         collection.y = tuple(y)
         collection.kwargs = kwargs
@@ -1470,6 +1488,22 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertFalse(plotter.is_line_selected(line2))
         self.assertTrue(plotter.is_line_selected(line3))
 
+    def test_brush_box_highlights_only_points_inside_box(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0, 8.0], [1.0, 2.0, 8.0], label="series")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.brush_box(axes, (0.5, 0.5), (2.5, 2.5), frozenset())
+
+        self.assertEqual(len(plotter.brushed_points), 1)
+        state = plotter.brushed_points[0]
+        self.assertIsInstance(state, BrushedPointsState)
+        self.assertIs(state.line, line)
+        self.assertEqual(state.indices, (0, 1))
+        self.assertEqual(state.artist.args[:2], ([1.0, 2.0], [1.0, 2.0]))
+        self.assertIn(state.artist, axes.collections)
+
     def test_brush_box_replaces_or_adds_selection_based_on_modifier(self):
         axes = FakeAxes()
         line1 = FakeLine([1.0], [1.0], label="a")
@@ -1481,10 +1515,12 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter.brush_box(axes, (0.0, 0.0), (2.0, 2.0), frozenset())
         self.assertTrue(plotter.is_line_selected(line1))
         self.assertFalse(plotter.is_line_selected(line2))
+        self.assertEqual([state.line for state in plotter.brushed_points], [line1])
 
         plotter.brush_box(axes, (7.0, 7.0), (9.0, 9.0), frozenset({"shift"}))
         self.assertTrue(plotter.is_line_selected(line1))
         self.assertTrue(plotter.is_line_selected(line2))
+        self.assertEqual({state.line for state in plotter.brushed_points}, {line1, line2})
 
     def test_brush_box_ignores_nonfinite_coordinates(self):
         axes = FakeAxes()
@@ -1521,6 +1557,32 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(plotter.selected_lines, [])
         self.assertEqual(line.get_linewidth(), 2.0)
         self.assertEqual(axes.figure.canvas.draw_count, 1)
+
+    def test_clear_selection_removes_brushed_point_highlights(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0], [1.0, 2.0], label="a")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.brush_box(axes, (0.0, 0.0), (2.0, 2.0), frozenset())
+        scatter = plotter.brushed_points[0].artist
+
+        plotter.clear_selection()
+
+        self.assertEqual(plotter.brushed_points, [])
+        self.assertTrue(scatter.removed)
+
+    def test_toggle_selected_visibility_hides_brushed_point_highlights(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0], [1.0, 2.0], label="a")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.brush_box(axes, (0.0, 0.0), (2.0, 2.0), frozenset())
+        scatter = plotter.brushed_points[0].artist
+
+        self.assertTrue(plotter.toggle_selected_visibility())
+        self.assertFalse(scatter.visible)
+        self.assertTrue(plotter.toggle_selected_visibility())
+        self.assertTrue(scatter.visible)
 
     def test_clear_selection_can_target_one_axes(self):
         axes1 = FakeAxes()

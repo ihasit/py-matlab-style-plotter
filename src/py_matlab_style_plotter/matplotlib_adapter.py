@@ -63,6 +63,16 @@ class SelectedLineState:
 
 
 @dataclass(frozen=True)
+class BrushedPointsState:
+    """Highlight artist for data points selected by brushing."""
+
+    axes: Any
+    line: Any
+    artist: Any
+    indices: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class CoordinateReadout:
     """Current pointer coordinate readout."""
 
@@ -98,6 +108,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._brush_box_artist: Any | None = None
         self.data_tips: list[DataTip] = []
         self.selected_lines: list[SelectedLineState] = []
+        self.brushed_points: list[BrushedPointsState] = []
         self.coordinate_readout: CoordinateReadout | None = None
         self.active_axes_style: ActiveAxesStyle | None = None
         self.linked_axes_state = {"x": False, "y": False, "xy": False}
@@ -1046,18 +1057,51 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         if not self._is_finite_box(start, end):
             return
         multi_select = bool(modifiers & {"shift", "control", "ctrl", "cmd", "super"})
-        brushed = self.find_lines_in_box(axes, start, end)
+        brushed_points = self.find_line_points_in_box(axes, start, end)
+        brushed = [line for line, _points in brushed_points]
         had_selection = bool(self.selected_lines)
+        had_brushed_points = bool(self.brushed_points)
         changed = False
         if not multi_select:
             self.clear_selection()
-            changed = had_selection
-        for line in brushed:
+            changed = had_selection or had_brushed_points
+        for line, points in brushed_points:
             if not self.is_line_selected(line):
                 self.select_line(line)
                 changed = True
+            if self._set_brushed_points(axes, line, points):
+                changed = True
         if changed and (multi_select or brushed):
             self._draw_idle(axes)
+
+    def _set_brushed_points(self, axes: Any, line: Any, points: tuple[tuple[int, float, float, float | None], ...]) -> bool:
+        self._clear_brushed_points_for_line(line)
+        if not points:
+            return False
+        artist = self._draw_brushed_points(axes, line, points)
+        if artist is None:
+            return False
+        self.brushed_points.append(BrushedPointsState(axes, line, artist, tuple(index for index, *_rest in points)))
+        return True
+
+    def _draw_brushed_points(self, axes: Any, line: Any, points: tuple[tuple[int, float, float, float | None], ...]) -> Any | None:
+        scatter = getattr(axes, "scatter", None)
+        if scatter is None:
+            return None
+        xs = [point_x for _index, point_x, _point_y, _point_z in points]
+        ys = [point_y for _index, _point_x, point_y, _point_z in points]
+        kwargs = {
+            "s": max(float(getattr(line, "get_markersize", lambda: 6.0)()) ** 2 * 1.7, 36.0),
+            "marker": "o",
+            "facecolors": "#FFD400",
+            "edgecolors": "#7A4F00",
+            "linewidths": 0.8,
+            "zorder": float(getattr(line, "get_zorder", lambda: 3.0)()) + 1500.0,
+        }
+        z_values = [point_z for _index, _point_x, _point_y, point_z in points]
+        if self.is_3d_axes(axes) and all(point_z is not None for point_z in z_values):
+            return scatter(xs, ys, [float(point_z) for point_z in z_values], **kwargs)
+        return scatter(xs, ys, **kwargs)
 
     def create_data_tip(self, axes: Any, x: float, y: float) -> None:
         if not self._is_finite_pair(x, y):
@@ -1164,21 +1208,31 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             else:
                 remaining.append(state)
         self.selected_lines = remaining
+        brushed_redraw_axes = self._remove_brushed_points(lines={line})
         if restored_axes is not None:
             self._draw_idle(restored_axes)
+        for axes in brushed_redraw_axes:
+            if axes is not restored_axes:
+                self._draw_idle(axes)
 
     def clear_selection(self, axes: Any | None = None) -> None:
         remaining = []
         redraw_axes = set()
+        restored_lines = set()
         for state in self.selected_lines:
             line_axes = getattr(state.line, "axes", None)
             if axes is not None and line_axes is not axes:
                 remaining.append(state)
                 continue
             self._restore_line_state(state)
+            restored_lines.add(state.line)
             if line_axes is not None:
                 redraw_axes.add(line_axes)
         self.selected_lines = remaining
+        if axes is None:
+            redraw_axes.update(self._remove_brushed_points(lines=restored_lines if restored_lines else None))
+        else:
+            redraw_axes.update(self._remove_brushed_points(axes=axes))
         for redraw_axis in redraw_axes:
             self._draw_idle(redraw_axis)
 
@@ -1191,6 +1245,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         axes_to_redraw = set()
         any_visible = any(bool(getattr(state.line, "get_visible", lambda: True)()) for state in self.selected_lines)
         new_visible = not any_visible
+        selected_lines = {state.line for state in self.selected_lines}
         for state in self.selected_lines:
             if not hasattr(state.line, "set_visible"):
                 continue
@@ -1198,6 +1253,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes = getattr(state.line, "axes", None)
             if axes is not None:
                 axes_to_redraw.add(axes)
+        for brushed_state in self.brushed_points:
+            if brushed_state.line not in selected_lines:
+                continue
+            set_visible = getattr(brushed_state.artist, "set_visible", None)
+            if set_visible is not None:
+                set_visible(new_visible)
+                axes_to_redraw.add(brushed_state.axes)
         for axes in axes_to_redraw:
             self._draw_idle(axes)
         return True
@@ -1209,6 +1271,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         lines = {state.line for state in states}
         axes_to_redraw = {getattr(state.line, "axes", None) for state in states}
         self.clear_data_tips_for_lines(lines)
+        axes_to_redraw.update(self._remove_brushed_points(lines=lines))
         for state in states:
             self._restore_line_state(state)
             state.line.remove()
@@ -1226,6 +1289,26 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             self.clear_data_tips()
             return True
         return False
+
+    def _clear_brushed_points_for_line(self, line: Any) -> set[Any]:
+        return self._remove_brushed_points(lines={line})
+
+    def _remove_brushed_points(self, *, axes: Any | None = None, lines: set[Any] | None = None) -> set[Any]:
+        remaining = []
+        redraw_axes = set()
+        for state in self.brushed_points:
+            if axes is not None and state.axes is not axes:
+                remaining.append(state)
+                continue
+            if lines is not None and state.line not in lines:
+                remaining.append(state)
+                continue
+            remove = getattr(state.artist, "remove", None)
+            if remove is not None:
+                remove()
+            redraw_axes.add(state.axes)
+        self.brushed_points = remaining
+        return redraw_axes
 
     def toggle_grid(self, axes: Any | None = None) -> None:
         self.grid("toggle", axes=axes)
@@ -1485,6 +1568,14 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return line, index, point_x, point_y, point_z
 
     def find_lines_in_box(self, axes: Any, start: tuple[float, float], end: tuple[float, float]) -> list[Any]:
+        return [line for line, _points in self.find_line_points_in_box(axes, start, end)]
+
+    def find_line_points_in_box(
+        self,
+        axes: Any,
+        start: tuple[float, float],
+        end: tuple[float, float],
+    ) -> list[tuple[Any, tuple[tuple[int, float, float, float | None], ...]]]:
         x0, x1 = sorted((start[0], end[0]))
         y0, y1 = sorted((start[1], end[1]))
         lines = []
@@ -1493,15 +1584,18 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 continue
             xdata = list(line.get_xdata())
             ydata = list(line.get_ydata())
-            for point_x, point_y in zip(xdata, ydata):
+            zdata = self._line_zdata(line)
+            points = []
+            for index, (point_x, point_y) in enumerate(zip(xdata, ydata)):
                 try:
                     px = float(point_x)
                     py = float(point_y)
                 except (TypeError, ValueError):
                     continue
                 if isfinite(px) and isfinite(py) and x0 <= px <= x1 and y0 <= py <= y1:
-                    lines.append(line)
-                    break
+                    points.append((index, px, py, self._coerce_z_value(zdata, index)))
+            if points:
+                lines.append((line, tuple(points)))
         return lines
 
     def format_data_tip(self, line: Any, index: int, x: float, y: float, z: float | None = None) -> str:
