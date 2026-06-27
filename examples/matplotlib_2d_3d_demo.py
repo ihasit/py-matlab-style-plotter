@@ -131,7 +131,7 @@ _MATLAB_MENU_ITEMS = (
     ),
 )
 _MENU_ICON_BY_METHOD = {
-    "matlab_none": "pointer",
+    "matlab_none": "none",
     "matlab_pan": "pan",
     "matlab_zoom": "zoom",
     "matlab_rotate3d": "rotate",
@@ -619,7 +619,10 @@ class MatlabContextMenu:
         if kind.startswith("line_"):
             self._draw_line_icon(kind, x, y, width, z)
             return
-        if kind in {"pointer", "select"}:
+        if kind == "none":
+            self._add_marker(cx, y, "o", color="#202020", size=6.2, z=z, fill="none")
+            self._add_line([left, right], [bottom, top], color="#202020", width=1.0, z=z)
+        elif kind in {"pointer", "select"}:
             self._add_line([left, right], [top, bottom], color="#202020", width=1.0, z=z)
             self._add_line([left, left + width * 0.26], [top, top - height * 0.02], color="#202020", width=1.0, z=z)
             self._add_line([left, left + width * 0.06], [top, top - height * 0.23], color="#202020", width=1.0, z=z)
