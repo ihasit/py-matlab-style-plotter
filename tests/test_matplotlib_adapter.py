@@ -757,7 +757,9 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                 ((1.0, 2.0), (4.0, 5.0), (), {"color": plotter.DEFAULT_COLOR_ORDER[0], "linestyle": "-", "label": "signal", "linewidth": 2}),
             ],
         )
-        self.assertEqual(axes.relim_count, 1)
+        # The plot lifecycle autoscales via autoscale_view only; data limits are
+        # tracked incrementally (and cla resets them), so no O(N) relim is needed.
+        self.assertEqual(axes.relim_count, 0)
         self.assertEqual(axes.autoscale_view_calls, [False])
         self.assertGreater(axes.figure.canvas.draw_count, 0)
 

@@ -48,7 +48,7 @@ includes the Matplotlib adapter and event bridge.
 The package version is defined in `pyproject.toml`:
 
 ```toml
-version = "0.1.2"
+version = "0.1.3"
 ```
 
 Use semantic versioning:
@@ -62,10 +62,10 @@ change, and create a matching Git tag:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.2"
-git tag -a v0.1.2 -m "Release v0.1.2"
+git commit -m "Release v0.1.3"
+git tag -a v0.1.3 -m "Release v0.1.3"
 git push origin main
-git push origin v0.1.2
+git push origin v0.1.3
 ```
 
 Other projects should pin a tag instead of tracking `main`:
@@ -73,7 +73,7 @@ Other projects should pin a tag instead of tracking `main`:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.2",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.3",
 ]
 ```
 

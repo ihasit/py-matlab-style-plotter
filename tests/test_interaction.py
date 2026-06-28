@@ -375,7 +375,7 @@ class FakePlotter(MatlabLikeAxesBase):
     def set_limits(self, axes, limits):
         axes.limits = limits
 
-    def autoscale_axes(self, axes, tight=False):
+    def autoscale_axes(self, axes, tight=False, recompute=True):
         axes.autoscale_calls.append(tight)
 
     def autoscale_clim(self, axes):

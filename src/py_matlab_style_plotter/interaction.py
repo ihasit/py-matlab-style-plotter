@@ -5190,7 +5190,10 @@ class MatlabLikeAxesBase:
         axes = axes if axes is not None else self.require_active_axes()
         state = self._current_axes_ui_state(axes)
         if state.xlim_mode == "auto" or state.ylim_mode == "auto" or state.zlim_mode == "auto":
-            self.autoscale_axes(axes, tight=False)
+            # Data limits are already current after adding artists (incrementally
+            # tracked, and the replacechildren clear path resets them), so skip the
+            # O(N) relim and only refresh the view.
+            self.autoscale_axes(axes, tight=False, recompute=False)
         self.push_current_view(axes)
 
     def require_active_axes(self) -> Any:
@@ -6010,8 +6013,13 @@ class MatlabLikeAxesBase:
 
         return nullcontext()
 
-    def autoscale_axes(self, axes: Any, tight: bool = False) -> None:
-        """Autoscale one axes for the concrete backend."""
+    def autoscale_axes(self, axes: Any, tight: bool = False, recompute: bool = True) -> None:
+        """Autoscale one axes for the concrete backend.
+
+        When ``recompute`` is False the backend may skip recomputing data limits
+        and only refresh the view, which is safe right after adding artists whose
+        data limits are already tracked incrementally.
+        """
 
         raise NotImplementedError
 

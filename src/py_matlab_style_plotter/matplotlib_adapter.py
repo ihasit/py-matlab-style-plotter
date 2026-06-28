@@ -650,6 +650,9 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return
         for artist in list(axes.lines) + list(axes.collections) + list(axes.images) + list(axes.patches):
             artist.remove()
+        # Removing artists does not shrink axes.dataLim; recompute it now (cheap on
+        # the emptied axes) so a later recompute=False autoscale stays correct.
+        axes.relim()
 
     def clear_axes_interaction_state(self, axes: Any) -> None:
         self.clear_data_tips(axes)
@@ -681,8 +684,9 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes.set_clim(*limits.clim)
         self._draw_idle(axes)
 
-    def autoscale_axes(self, axes: Any, tight: bool = False) -> None:
-        axes.relim()
+    def autoscale_axes(self, axes: Any, tight: bool = False, recompute: bool = True) -> None:
+        if recompute:
+            axes.relim()
         axes.autoscale_view(tight=tight)
         self._draw_idle(axes)
 
