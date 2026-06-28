@@ -27,6 +27,7 @@ from .interaction import (
     HistogramSeries,
     ImageSeries,
     MatlabLikeAxesBase,
+    PointerEvent,
     Plot3Series,
     PlotSeries,
     ScatterSeries,
@@ -125,6 +126,8 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.active_axes_style: ActiveAxesStyle | None = None
         self._draw_idle_batch_depth = 0
         self._draw_idle_pending_canvases: list[Any] = []
+        self.coordinate_readout_pixel_threshold = 3.0
+        self._last_coordinate_readout_motion: tuple[Any, float, float] | None = None
         self.linked_axes_state = {"x": False, "y": False, "xy": False}
         self.x_axes_linked = False
         self.selection_pick_tolerance = 0.05
@@ -679,33 +682,25 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def autoscale_axes(self, axes: Any, tight: bool = False) -> None:
         axes.relim()
         axes.autoscale_view(tight=tight)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def autoscale_clim(self, axes: Any) -> None:
         for artist in [*getattr(axes, "images", []), *getattr(axes, "collections", [])]:
             autoscale = getattr(artist, "autoscale", None)
             if autoscale is not None:
                 autoscale()
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_aspect(self, axes: Any, aspect: AspectMode) -> None:
         axes.set_aspect("equal" if aspect == "equal" else "auto")
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_box_aspect(self, axes: Any, box_aspect: BoxAspectMode) -> None:
         if not hasattr(axes, "set_box_aspect"):
             return
         fixed_aspect = (1, 1, 1) if self.is_3d_axes(axes) else 1
         axes.set_box_aspect(fixed_aspect if box_aspect in {"square", "vis3d"} else None)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_data_aspect_ratio(self, axes: Any, ratio: tuple[float, float, float]) -> None:
         if self.is_3d_axes(axes):
@@ -715,26 +710,20 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             x_ratio = float(ratio[0]) if ratio else 1.0
             y_ratio = float(ratio[1]) if len(ratio) > 1 else 1.0
             axes.set_aspect(y_ratio / x_ratio if x_ratio != 0.0 else "auto")
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_plot_box_aspect_ratio(self, axes: Any, ratio: tuple[float, float, float]) -> None:
         if not hasattr(axes, "set_box_aspect"):
             return
         axes.set_box_aspect(ratio)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_axis_visible(self, axes: Any, visible: bool) -> None:
         if visible:
             axes.set_axis_on()
         else:
             axes.set_axis_off()
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_x_direction(self, axes: Any, direction: AxisDirection) -> None:
         self._apply_axis_direction(axes, "x", direction)
@@ -754,9 +743,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 invert()
             else:
                 setattr(axes, f"{axis}_direction", direction)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_axis_scale(self, axes: Any, axis: str, scale: AxisScale) -> None:
         setter = getattr(axes, f"set_{axis}scale", None)
@@ -764,9 +751,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_axis_scale(axes, axis, scale)  # type: ignore[arg-type]
         else:
             setter(scale)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_axis_layer(self, axes: Any, layer: AxisLayer) -> None:
         setter = getattr(axes, "set_axisbelow", None)
@@ -774,9 +759,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_axis_layer(axes, layer)
         else:
             setter(layer == "bottom")
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_tick_direction(self, axes: Any, direction: TickDirection) -> None:
         tick_params = getattr(axes, "tick_params", None)
@@ -784,9 +767,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_tick_direction(axes, direction)
         else:
             tick_params(direction=direction)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_tick_length(self, axes: Any, tick_length: tuple[float, float]) -> None:
         tick_params = getattr(axes, "tick_params", None)
@@ -819,9 +800,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_ticks(axes, axis, ticks)  # type: ignore[arg-type]
         else:
             setter(ticks)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def get_ticklabels(self, axes: Any, axis: str) -> tuple[str, ...]:
         getter = getattr(axes, f"get_{axis}ticklabels", None)
@@ -839,9 +818,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_ticklabels(axes, axis, labels)  # type: ignore[arg-type]
         else:
             setter(labels)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def set_ticklabel_rotation(self, axes: Any, axis: str, rotation: float) -> None:
         tick_params = getattr(axes, "tick_params", None)
@@ -849,9 +826,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_ticklabel_rotation(axes, axis, rotation)  # type: ignore[arg-type]
         else:
             tick_params(axis=axis, labelrotation=rotation)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def get_axes_text(self, axes: Any, kind: str) -> tuple[str, ...]:
         getter = {
@@ -877,9 +852,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             super().set_axes_text(axes, kind, text)  # type: ignore[arg-type]
         else:
             setter(value)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def is_3d_axes(self, axes: Any) -> bool:
         if hasattr(axes, "is_3d"):
@@ -910,9 +883,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             setattr(axes, "camera_target", camera.target)
         if camera.up_vector is not None:
             setattr(axes, "camera_up_vector", camera.up_vector)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def get_camera_projection(self, axes: Any) -> CameraProjection:
         if hasattr(axes, "get_proj_type"):
@@ -932,9 +903,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes.set_proj_type("ortho" if projection == "orthographic" else "persp")
         else:
             setattr(axes, "camera_projection", projection)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def _camera_vector_attr(self, axes: Any, name: str) -> tuple[float, float, float] | None:
         value = getattr(axes, name, None)
@@ -1573,10 +1542,34 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.coordinate_readout = readout
         self.on_coordinate_readout_changed(readout)
 
+    def should_update_coordinate_readout(self, event: PointerEvent) -> bool:
+        if event.axes is None or event.x is None or event.y is None:
+            return True
+        try:
+            screen_x = float(event.x)
+            screen_y = float(event.y)
+        except (TypeError, ValueError):
+            return True
+        if not (isfinite(screen_x) and isfinite(screen_y)):
+            return True
+        threshold = float(self.coordinate_readout_pixel_threshold)
+        if threshold <= 0.0:
+            self._last_coordinate_readout_motion = (event.axes, screen_x, screen_y)
+            return True
+        last = self._last_coordinate_readout_motion
+        if last is not None and last[0] is event.axes:
+            dx = screen_x - last[1]
+            dy = screen_y - last[2]
+            if dx * dx + dy * dy < threshold * threshold:
+                return False
+        self._last_coordinate_readout_motion = (event.axes, screen_x, screen_y)
+        return True
+
     def clear_coordinate_readout(self) -> None:
         if self.coordinate_readout is None:
             return
         self.coordinate_readout = None
+        self._last_coordinate_readout_motion = None
         self.on_coordinate_readout_changed(None)
 
     def cancel_interaction(self) -> None:

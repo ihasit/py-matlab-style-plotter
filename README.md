@@ -122,6 +122,28 @@ python -m py_compile \
   examples/matplotlib_2d_3d_demo.py
 ```
 
+## Benchmark
+
+Run the large-line benchmark:
+
+```bash
+env MPLCONFIGDIR=/private/tmp/pyMatlabStylePlotter-mpl \
+  python benchmarks/plot_large_lines.py --repeats 1
+```
+
+The default benchmark draws 8 lines with 1,024,000 points each. On the
+development machine with Matplotlib 3.11.0 and the Agg backend:
+
+| Case | Create | First draw | Pan redraw |
+| --- | ---: | ---: | ---: |
+| raw Matplotlib | 0.121 s | 0.215 s | 0.164 s |
+| `plotter.plot(x, y_matrix)` | 0.377 s | 0.187 s | 0.168 s |
+| 8 separate `plotter.plot(x, y)` calls | 1.269 s | 0.188 s | 0.167 s |
+
+For large datasets, prefer one matrix plot call, for example
+`plotter.plot(x, y.T)`, instead of repeated single-line calls. This keeps
+Matplotlib redraw and autoscale work batched.
+
 ## Project Layout
 
 ```text
@@ -132,6 +154,9 @@ src/py_matlab_style_plotter/
 
 examples/
   matplotlib_2d_3d_demo.py
+
+benchmarks/
+  plot_large_lines.py
 
 tests/
   test_interaction.py

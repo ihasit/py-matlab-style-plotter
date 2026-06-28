@@ -1,5 +1,7 @@
 import unittest
 
+import numpy as np
+
 from py_matlab_style_plotter import (
     ActiveAxesStyle,
     AxesLimits,
@@ -8,6 +10,7 @@ from py_matlab_style_plotter import (
     CoordinateReadout,
     DataTip,
     MatplotlibAxesPlotter,
+    PointerEvent,
     SelectedDataTipState,
     SelectedLineState,
 )
@@ -807,6 +810,29 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                 ((10.0, 20.0, 30.0), (10.0, 20.0, 30.0), (), {"marker": "x", "color": plotter.DEFAULT_COLOR_ORDER[1], "linestyle": "-"}),
             ],
         )
+
+    def test_normalize_plot_args_preserves_numpy_vector_without_tuple_copy(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+        x = np.linspace(0.0, 1.0, 8)
+        y = np.linspace(1.0, 2.0, 8)
+
+        series = plotter.normalize_plot_args((x, y))
+
+        self.assertIs(series[0].x, x)
+        self.assertIs(series[0].y, y)
+
+    def test_normalize_plot_args_uses_numpy_matrix_column_views(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+        x = np.linspace(0.0, 1.0, 8)
+        y = np.column_stack((np.sin(x), np.cos(x)))
+
+        series = plotter.normalize_plot_args((x, y))
+
+        self.assertEqual(len(series), 2)
+        self.assertTrue(np.shares_memory(series[0].y, y))
+        self.assertTrue(np.shares_memory(series[1].y, y))
 
     def test_plot_matlab_name_value_properties_map_to_matplotlib_kwargs(self):
         axes = FakeAxes()
@@ -2448,6 +2474,20 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(plotter.get_camera_projection(axes), "orthographic")
         self.assertEqual(axes.figure.canvas.draw_count, 2)
 
+    def test_restore_view_batches_matplotlib_redraws(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.push_current_view()
+        plotter.set_xlim(1.0, 2.0)
+        plotter.set_ylim(3.0, 4.0)
+        draw_count_after_changes = axes.figure.canvas.draw_count
+
+        self.assertTrue(plotter.home())
+
+        self.assertEqual(axes.figure.canvas.draw_count, draw_count_after_changes + 1)
+        self.assertEqual(axes.get_xlim(), (0.0, 10.0))
+        self.assertEqual(axes.get_ylim(), (0.0, 10.0))
+
     def test_explicit_aspect_ratios_map_to_matplotlib_axes(self):
         axes = FakeAxes(is_3d=True)
         plotter = MatplotlibAxesPlotter(axes)
@@ -2571,6 +2611,28 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(len(plotter.readout_changes), 2)
         self.assertEqual(plotter.readout_changes[0].text, "x=1, y=2")
         self.assertEqual(plotter.readout_changes[1].text, "x=1, y=2.5")
+
+    def test_mouse_move_coordinate_readout_is_throttled_by_screen_distance(self):
+        axes = FakeAxes()
+        plotter = RecordingCoordinatePlotter(axes)
+
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=10.0, y=10.0, xdata=1.0, ydata=2.0))
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=11.0, y=11.0, xdata=1.1, ydata=2.1))
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=14.0, y=10.0, xdata=1.4, ydata=2.0))
+
+        self.assertEqual(len(plotter.readout_changes), 2)
+        self.assertEqual(plotter.readout_changes[0].text, "x=1, y=2")
+        self.assertEqual(plotter.readout_changes[1].text, "x=1.4, y=2")
+
+    def test_mouse_move_coordinate_readout_throttle_can_be_disabled(self):
+        axes = FakeAxes()
+        plotter = RecordingCoordinatePlotter(axes)
+        plotter.coordinate_readout_pixel_threshold = 0.0
+
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=10.0, y=10.0, xdata=1.0, ydata=2.0))
+        plotter.on_mouse_move(PointerEvent(axes=axes, x=11.0, y=11.0, xdata=1.1, ydata=2.1))
+
+        self.assertEqual(len(plotter.readout_changes), 2)
 
     def test_coordinate_readout_ignores_nonfinite_coordinates(self):
         axes = FakeAxes()

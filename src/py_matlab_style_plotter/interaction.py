@@ -13,6 +13,11 @@ from enum import Enum
 from math import atan, cos, degrees, isfinite, radians, sin, tan
 from typing import Any, Callable, cast, Iterable, Literal, overload, Sequence
 
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - NumPy is optional for backend-neutral use.
+    np = None
+
 
 LimitMode = Literal["auto", "manual"]
 AspectMode = Literal["auto", "equal"]
@@ -570,31 +575,55 @@ class QuiverSeries:
 
 @dataclass(frozen=True)
 class _PlotData:
-    rows: tuple[tuple[float, ...], ...]
+    rows: Any
 
     @property
     def row_count(self) -> int:
+        if self._is_array:
+            if self.rows.ndim == 1:
+                return 1
+            return int(self.rows.shape[0])
         return len(self.rows)
 
     @property
     def column_count(self) -> int:
+        if self._is_array:
+            if self.rows.ndim == 1:
+                return int(self.rows.shape[0])
+            return int(self.rows.shape[1])
         return len(self.rows[0]) if self.rows else 0
 
     @property
     def is_vector(self) -> bool:
         return self.row_count <= 1 or self.column_count <= 1
 
-    def as_vector(self) -> tuple[float, ...]:
+    def as_vector(self) -> Any:
         if self.row_count == 0:
             return ()
+        if self._is_array:
+            if self.rows.ndim == 1:
+                return self.rows
+            if self.row_count == 1:
+                return self.rows[0, :]
+            if self.column_count == 1:
+                return self.rows[:, 0]
+            raise ValueError("data must be a vector")
         if self.row_count == 1:
             return self.rows[0]
         if self.column_count == 1:
             return tuple(row[0] for row in self.rows)
         raise ValueError("data must be a vector")
 
-    def column(self, index: int) -> tuple[float, ...]:
+    def column(self, index: int) -> Any:
+        if self._is_array:
+            if self.rows.ndim == 1:
+                return self.rows
+            return self.rows[:, index]
         return tuple(row[index] for row in self.rows)
+
+    @property
+    def _is_array(self) -> bool:
+        return hasattr(self.rows, "ndim") and hasattr(self.rows, "shape")
 
 
 @dataclass(frozen=True)
@@ -1262,10 +1291,11 @@ class MatlabLikeAxesBase:
         axes, args = self._resolve_axes(args, axes)
         self.set_active_axes(axes)
         series = self.normalize_plot_args(args, kwargs)
-        self.prepare_for_plot(axes)
-        series = self._apply_plot_series_order(axes, series)
-        artists = self.draw_plot_series(axes, series)
-        self.after_plot(axes)
+        with self.batch_draw_idle():
+            self.prepare_for_plot(axes)
+            series = self._apply_plot_series_order(axes, series)
+            artists = self.draw_plot_series(axes, series)
+            self.after_plot(axes)
         return artists
 
     def plot3(self, *args: Any, axes: Any | None = None, **kwargs: Any) -> list[Any]:
@@ -2444,6 +2474,9 @@ class MatlabLikeAxesBase:
     def _plot_data(self, value: Any, label: str) -> _PlotData:
         if isinstance(value, (str, bytes)):
             raise ValueError(f"{label} must be numeric plot data")
+        array = self._numeric_array(value, label)
+        if array is not None:
+            return _PlotData(array)
         if self._is_plot_row(value):
             rows = tuple(self._numeric_vector(row, label) for row in value)
             if not rows:
@@ -2453,6 +2486,21 @@ class MatlabLikeAxesBase:
                 raise ValueError(f"{label} matrix rows must have the same length")
             return _PlotData(rows)
         return _PlotData((self._numeric_vector(value, label),))
+
+    def _numeric_array(self, value: Any, label: str) -> Any | None:
+        if np is None or not hasattr(value, "__array__"):
+            return None
+        try:
+            array = np.asarray(value, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label} must be numeric plot data") from exc
+        if array.ndim > 2:
+            raise ValueError(f"{label} must be a numeric vector or matrix")
+        if array.ndim == 0:
+            array = array.reshape(1)
+        if array.size and not bool(np.all(np.isfinite(array))):
+            raise ValueError(f"{label} must contain only finite numeric values")
+        return array
 
     def _is_plot_row(self, value: Any) -> bool:
         try:
@@ -2525,17 +2573,25 @@ class MatlabLikeAxesBase:
 
     def _area_series_from_plot_series(self, series: Sequence[PlotSeries]) -> list[AreaSeries]:
         grouped: list[AreaSeries] = []
-        baselines: dict[tuple[float, ...], tuple[float, ...]] = {}
+        baselines: dict[Any, Any] = {}
         for item in series:
-            baseline = baselines.get(item.x)
+            x_key = self._series_x_key(item.x)
+            baseline = baselines.get(x_key)
             if baseline is None:
                 baseline = tuple(0.0 for _value in item.y)
             if len(baseline) != len(item.y):
                 raise ValueError("area series with shared x data must have matching y lengths")
             top = tuple(base + value for base, value in zip(baseline, item.y))
             grouped.append(AreaSeries(item.x, top, baseline, item.style, item.properties, item.line_spec))
-            baselines[item.x] = top
+            baselines[x_key] = top
         return grouped
+
+    def _series_x_key(self, x_values: Any) -> Any:
+        try:
+            hash(x_values)
+        except TypeError:
+            return id(x_values)
+        return x_values
 
     def _is_fill_color_arg(self, value: Any) -> bool:
         if isinstance(value, str):
@@ -4918,7 +4974,8 @@ class MatlabLikeAxesBase:
             and event.ydata is not None
             and self._is_finite_pair(event.xdata, event.ydata)
         ):
-            self.update_coordinate_readout(event.axes, event.xdata, event.ydata)
+            if self.should_update_coordinate_readout(event):
+                self.update_coordinate_readout(event.axes, event.xdata, event.ydata)
         if self._rotate_drag is not None and self.mode == InteractionMode.ROTATE3D:
             current_x = event.x
             current_y = event.y
@@ -5118,54 +5175,55 @@ class MatlabLikeAxesBase:
 
     def _restore_view(self, state: ViewState) -> None:
         axes = self.require_active_axes()
-        self.set_limits(axes, state.limits)
-        self._apply_state_properties(state)
-        self.set_aspect(axes, state.aspect)
-        self.set_box_aspect(axes, state.box_aspect)
-        if state.data_aspect_ratio_mode == "manual":
-            self.set_data_aspect_ratio(axes, state.data_aspect_ratio)
-        if state.plot_box_aspect_ratio_mode == "manual":
-            self.set_plot_box_aspect_ratio(axes, state.plot_box_aspect_ratio)
-        self.set_axis_visible(axes, state.axis_visible)
-        self._apply_grid_state(axes, state)
-        self.set_box_visible(axes, state.box_visible)
-        self.set_legend_visible(axes, state.legend_visible)
-        self.set_x_direction(axes, state.x_direction)
-        self.set_y_direction(axes, state.y_direction)
-        self.set_z_direction(axes, state.z_direction)
-        self.set_axis_scale(axes, "x", state.x_scale)
-        self.set_axis_scale(axes, "y", state.y_scale)
-        self.set_axis_scale(axes, "z", state.z_scale)
-        self.set_axis_layer(axes, state.axis_layer)
-        self.set_tick_direction(axes, state.tick_direction)
-        self.set_tick_length(axes, state.tick_length)
-        self.set_x_axis_location(axes, state.x_axis_location)
-        self.set_y_axis_location(axes, state.y_axis_location)
-        if state.xtick_mode == "manual":
-            self.set_ticks(axes, "x", state.xtick)
-        if state.ytick_mode == "manual":
-            self.set_ticks(axes, "y", state.ytick)
-        if state.ztick_mode == "manual":
-            self.set_ticks(axes, "z", state.ztick)
-        self.set_ticklabel_rotation(axes, "x", state.xticklabel_rotation)
-        self.set_ticklabel_rotation(axes, "y", state.yticklabel_rotation)
-        if self.is_3d_axes(axes):
-            self.set_ticklabel_rotation(axes, "z", state.zticklabel_rotation)
-        if state.xticklabel_mode == "manual":
-            self.set_ticklabels(axes, "x", state.xticklabel)
-        if state.yticklabel_mode == "manual":
-            self.set_ticklabels(axes, "y", state.yticklabel)
-        if state.zticklabel_mode == "manual":
-            self.set_ticklabels(axes, "z", state.zticklabel)
-        self.set_axes_text(axes, "title", state.axes_title)
-        self.set_axes_text(axes, "xlabel", state.xlabel_text)
-        self.set_axes_text(axes, "ylabel", state.ylabel_text)
-        self.set_axes_text(axes, "zlabel", state.zlabel_text)
-        if self.is_3d_axes(axes):
-            self.set_camera_projection(axes, state.camera_projection)
-        if state.camera is not None and self.is_3d_axes(axes):
-            self.set_camera3d(axes, state.camera)
-        self.sync_linked_axes(axes, state.limits)
+        with self.batch_draw_idle():
+            self.set_limits(axes, state.limits)
+            self._apply_state_properties(state)
+            self.set_aspect(axes, state.aspect)
+            self.set_box_aspect(axes, state.box_aspect)
+            if state.data_aspect_ratio_mode == "manual":
+                self.set_data_aspect_ratio(axes, state.data_aspect_ratio)
+            if state.plot_box_aspect_ratio_mode == "manual":
+                self.set_plot_box_aspect_ratio(axes, state.plot_box_aspect_ratio)
+            self.set_axis_visible(axes, state.axis_visible)
+            self._apply_grid_state(axes, state)
+            self.set_box_visible(axes, state.box_visible)
+            self.set_legend_visible(axes, state.legend_visible)
+            self.set_x_direction(axes, state.x_direction)
+            self.set_y_direction(axes, state.y_direction)
+            self.set_z_direction(axes, state.z_direction)
+            self.set_axis_scale(axes, "x", state.x_scale)
+            self.set_axis_scale(axes, "y", state.y_scale)
+            self.set_axis_scale(axes, "z", state.z_scale)
+            self.set_axis_layer(axes, state.axis_layer)
+            self.set_tick_direction(axes, state.tick_direction)
+            self.set_tick_length(axes, state.tick_length)
+            self.set_x_axis_location(axes, state.x_axis_location)
+            self.set_y_axis_location(axes, state.y_axis_location)
+            if state.xtick_mode == "manual":
+                self.set_ticks(axes, "x", state.xtick)
+            if state.ytick_mode == "manual":
+                self.set_ticks(axes, "y", state.ytick)
+            if state.ztick_mode == "manual":
+                self.set_ticks(axes, "z", state.ztick)
+            self.set_ticklabel_rotation(axes, "x", state.xticklabel_rotation)
+            self.set_ticklabel_rotation(axes, "y", state.yticklabel_rotation)
+            if self.is_3d_axes(axes):
+                self.set_ticklabel_rotation(axes, "z", state.zticklabel_rotation)
+            if state.xticklabel_mode == "manual":
+                self.set_ticklabels(axes, "x", state.xticklabel)
+            if state.yticklabel_mode == "manual":
+                self.set_ticklabels(axes, "y", state.yticklabel)
+            if state.zticklabel_mode == "manual":
+                self.set_ticklabels(axes, "z", state.zticklabel)
+            self.set_axes_text(axes, "title", state.axes_title)
+            self.set_axes_text(axes, "xlabel", state.xlabel_text)
+            self.set_axes_text(axes, "ylabel", state.ylabel_text)
+            self.set_axes_text(axes, "zlabel", state.zlabel_text)
+            if self.is_3d_axes(axes):
+                self.set_camera_projection(axes, state.camera_projection)
+            if state.camera is not None and self.is_3d_axes(axes):
+                self.set_camera3d(axes, state.camera)
+            self.sync_linked_axes(axes, state.limits)
         self._save_axes_ui_state(axes)
 
     def _set_user_limits(self, axes: Any, limits: AxesLimits, *, save_state: bool = True) -> None:
@@ -5657,6 +5715,11 @@ class MatlabLikeAxesBase:
 
     def update_coordinate_readout(self, axes: Any, x: float, y: float) -> None:
         """Hook for status bar or crosshair integrations."""
+
+    def should_update_coordinate_readout(self, event: PointerEvent) -> bool:
+        """Return whether this motion event should refresh coordinate readout."""
+
+        return True
 
     def create_data_tip(self, axes: Any, x: float, y: float) -> None:
         """Hook for data cursor integrations."""

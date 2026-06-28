@@ -53,6 +53,18 @@ plotter.plot([0, 1, 2, 3], [1, 3, 2, 4])
 plotter.plot([0, 1, 2], [0, 1, 0], "r--o", LineWidth=2, DisplayName="demo")
 ```
 
+For large data, prefer passing multiple lines as a matrix in one call:
+
+```python
+# y_matrix has shape (point_count, line_count)
+plotter.plot(x, y_matrix)
+```
+
+This batches color-order handling, autoscale, view-history updates, and redraw
+requests. Repeated single-line calls are supported, but they intentionally run
+the MATLAB-like plot lifecycle for each call and are slower for million-point
+datasets.
+
 Supported command families include:
 
 - Lines: `plot`, `plot3`, `line`, `stairs`, `errorbar`
@@ -158,6 +170,24 @@ Axis shortcuts in the demo:
 | `w` | `axis vis3d` |
 | `O` | `axis off` |
 | `U` | `axis on` |
+
+## 7. Large Data Benchmark
+
+Run the included benchmark:
+
+```bash
+env MPLCONFIGDIR=/private/tmp/pyMatlabStylePlotter-mpl \
+  python benchmarks/plot_large_lines.py --repeats 1
+```
+
+Default data size: 8 lines, 1,024,000 points per line. Current reference result
+on the development machine with Matplotlib 3.11.0 and the Agg backend:
+
+| Case | Create | First draw | Pan redraw |
+| --- | ---: | ---: | ---: |
+| raw Matplotlib | 0.121 s | 0.215 s | 0.164 s |
+| matrix plotter call | 0.377 s | 0.187 s | 0.168 s |
+| repeated plotter calls | 1.269 s | 0.188 s | 0.167 s |
 | `j` | `axis ij` |
 | `k` | `axis xy` |
 | `2` | `view(2)` |
