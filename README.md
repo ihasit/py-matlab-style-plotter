@@ -31,17 +31,17 @@ argument forms.
 From this repository:
 
 ```bash
-python -m pip install -e ".[matplotlib,test]"
+python -m pip install -e .
 ```
 
-For runtime use with Matplotlib only:
+For development and tests:
 
 ```bash
-python -m pip install -e ".[matplotlib]"
+python -m pip install -e ".[test]"
 ```
 
-The package itself has no mandatory runtime dependency. Matplotlib support is
-an optional extra.
+Matplotlib and NumPy are runtime dependencies because the public package API
+includes the Matplotlib adapter and event bridge.
 
 ## Quick Start
 

@@ -8,13 +8,13 @@ MATLAB-like interaction model is intended to work.
 From the repository root:
 
 ```bash
-python -m pip install -e ".[matplotlib,test]"
+python -m pip install -e .
 ```
 
-If you only need runtime Matplotlib support:
+For development and tests:
 
 ```bash
-python -m pip install -e ".[matplotlib]"
+python -m pip install -e ".[test]"
 ```
 
 For local commands without installation, set `PYTHONPATH=src`.
