@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.1.1"
+version = "0.1.2"
 ```
 
 Use semantic versioning:
@@ -37,10 +37,10 @@ Recommended release flow:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.1"
-git tag -a v0.1.1 -m "Release v0.1.1"
+git commit -m "Release v0.1.2"
+git tag -a v0.1.2 -m "Release v0.1.2"
 git push origin main
-git push origin v0.1.1
+git push origin v0.1.2
 ```
 
 On GitHub, pushing a `v*` tag triggers `.github/workflows/release.yml`. The
@@ -53,7 +53,7 @@ workflow:
 - uploads `dist/*` as release assets
 
 The generated wheel is universal for this pure-Python package, for example
-`py_matlab_style_plotter-0.1.1-py3-none-any.whl`.
+`py_matlab_style_plotter-0.1.2-py3-none-any.whl`.
 
 Do not commit generated package artifacts. `.gitignore` excludes `dist/`,
 `build/`, `*.egg-info/`, and `*.whl`; GitHub Actions should recreate them for
@@ -70,7 +70,7 @@ For reproducible project dependencies, pin a Git tag:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.1",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.2",
 ]
 ```
 

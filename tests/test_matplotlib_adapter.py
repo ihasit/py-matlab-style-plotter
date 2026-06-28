@@ -1,6 +1,11 @@
 import unittest
 
+import matplotlib
 import numpy as np
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 
 from py_matlab_style_plotter import (
     ActiveAxesStyle,
@@ -2760,6 +2765,23 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         plotter = MatplotlibAxesPlotter(axes)
 
         self.assertIsNone(plotter.active_axes_style)
+
+    def test_set_mode_label_enabled_hides_and_restores_label(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_mode("pan")
+
+        self.assertIsNotNone(plotter._mode_label_artist)
+
+        plotter.set_mode_label_enabled(False)
+
+        self.assertIsNone(plotter._mode_label_artist)
+
+        plotter.set_mode_label_enabled(True)
+
+        self.assertIsNotNone(plotter._mode_label_artist)
+        self.assertEqual(plotter._mode_label_artist.get_text(), "Pan")
+        plt.close(fig)
 
 
 if __name__ == "__main__":

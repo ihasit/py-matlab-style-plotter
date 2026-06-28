@@ -1410,6 +1410,21 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertFalse(axes2.box_visible)
         self.assertTrue(axes2.legend_visible)
 
+    def test_first_active_axes_load_preserves_existing_backend_grid_state(self):
+        axes1 = FakeAxes("a1")
+        axes2 = FakeAxes("a2")
+        axes2.grid_visible = True
+        axes2.x_grid_visible = True
+        axes2.y_grid_visible = True
+        plotter = FakePlotter(axes1)
+
+        plotter.set_active_axes(axes2)
+
+        self.assertTrue(axes2.grid_visible)
+        self.assertTrue(axes2.x_grid_visible)
+        self.assertTrue(axes2.y_grid_visible)
+        self.assertTrue(plotter.grid_is_enabled(axes2))
+
     def test_prepare_for_plot_uses_next_plot(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
@@ -4646,7 +4661,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         )
         self.assertEqual(len(plotter.view_stack), 1)
 
-    def test_zoom_left_click_zooms_in_without_collapsing_limits(self):
+    def test_zoom_left_click_without_drag_does_not_zoom(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
         plotter.set_mode("zoom")
@@ -4654,13 +4669,13 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.on_mouse_press(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
         plotter.on_mouse_release(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
 
-        self.assertEqual(axes.limits, AxesLimits((2.5, 7.5), (-0.5, 0.5)))
-        self.assertEqual(plotter.xlim_mode, "manual")
-        self.assertEqual(plotter.ylim_mode, "manual")
+        self.assertEqual(axes.limits, AxesLimits((0.0, 10.0), (-1.0, 1.0)))
+        self.assertEqual(plotter.xlim_mode, "auto")
+        self.assertEqual(plotter.ylim_mode, "auto")
         self.assertEqual(plotter.zoom_box_events, [("begin", axes, 5.0, 0.0), ("end",)])
-        self.assertEqual(len(plotter.view_stack), 1)
+        self.assertEqual(len(plotter.view_stack), 0)
 
-    def test_zoom_direction_out_makes_left_click_zoom_out(self):
+    def test_zoom_direction_out_does_not_make_left_click_zoom_out(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
         plotter.zoom_direction = "out"
@@ -4669,10 +4684,10 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.on_mouse_press(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
         plotter.on_mouse_release(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
 
-        self.assertEqual(axes.limits, AxesLimits((-5.0, 15.0), (-2.0, 2.0)))
-        self.assertEqual(len(plotter.view_stack), 1)
+        self.assertEqual(axes.limits, AxesLimits((0.0, 10.0), (-1.0, 1.0)))
+        self.assertEqual(len(plotter.view_stack), 0)
 
-    def test_zoom_left_click_on_3d_axes_uses_camera_view_angle_when_available(self):
+    def test_zoom_left_click_on_3d_axes_without_drag_does_not_zoom_camera(self):
         axes = FakeAxes(is_3d=True)
         axes.camera = Camera3DState(azim=-37.5, elev=30.0, view_angle=10.0)
         plotter = FakePlotter(axes)
@@ -4681,8 +4696,8 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.on_mouse_press(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
         plotter.on_mouse_release(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
 
-        self.assertAlmostEqual(axes.camera.view_angle, 5.009537444)
-        self.assertEqual(plotter.camera_view_angle_mode, "manual")
+        self.assertAlmostEqual(axes.camera.view_angle, 10.0)
+        self.assertEqual(plotter.camera_view_angle_mode, "auto")
         self.assertEqual(axes.limits, AxesLimits((0.0, 10.0), (-1.0, 1.0), (0.0, 5.0)))
 
     def test_zoom_on_3d_axes_can_use_legacy_limit_mode(self):
@@ -4717,7 +4732,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(vertical.xlim_mode, "auto")
         self.assertEqual(vertical.ylim_mode, "manual")
 
-    def test_zoom_small_pointer_motion_still_counts_as_click(self):
+    def test_zoom_small_pointer_motion_does_not_zoom(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
         plotter.set_mode("zoom")
@@ -4725,8 +4740,8 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.on_mouse_press(PointerEvent(axes=axes, x=100.0, y=200.0, xdata=5.0, ydata=0.0, button="left"))
         plotter.on_mouse_release(PointerEvent(axes=axes, x=102.0, y=201.0, xdata=5.2, ydata=0.1, button="left"))
 
-        self.assertEqual(axes.limits, AxesLimits((2.5, 7.5), (-0.5, 0.5)))
-        self.assertEqual(len(plotter.view_stack), 1)
+        self.assertEqual(axes.limits, AxesLimits((0.0, 10.0), (-1.0, 1.0)))
+        self.assertEqual(len(plotter.view_stack), 0)
 
     def test_zoom_right_click_defaults_to_context_menu_noop_like_matlab(self):
         axes = FakeAxes()

@@ -159,6 +159,19 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         menu.close()
         plt.close(fig)
 
+    def test_close_can_ignore_stale_artist_remove_errors(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+        line = axes.axvline(0.5)
+        menu._artists.append(line)
+        line.remove()
+
+        menu.close(ignore_remove_errors=True)
+
+        self.assertEqual(menu._artists, [])
+        plt.close(fig)
+
 
 if __name__ == "__main__":
     unittest.main()

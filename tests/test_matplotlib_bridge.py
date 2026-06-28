@@ -46,6 +46,7 @@ class FakePlotter:
         self.view_calls = []
         self.view_3d_calls = []
         self.cancel_count = 0
+        self.scroll_base_scales = []
 
     def on_mouse_press(self, event):
         self.presses.append(event)
@@ -56,8 +57,9 @@ class FakePlotter:
     def on_mouse_move(self, event):
         self.moves.append(event)
 
-    def on_scroll(self, event):
+    def on_scroll(self, event, base_scale=1.2):
         self.scrolls.append(event)
+        self.scroll_base_scales.append(base_scale)
 
     def set_mode(self, mode):
         self.modes.append(InteractionMode(mode))
@@ -195,14 +197,35 @@ class MatplotlibEventBridgeTest(unittest.TestCase):
         self.assertEqual(pointer.modifiers, frozenset({"shift", "control"}))
         self.assertTrue(pointer.dblclick)
 
-    def test_scroll_normalizes_step(self):
+    def test_scroll_normalizes_step_to_unit_direction_by_default(self):
         plotter = FakePlotter()
         bridge = MatplotlibEventBridge(plotter, FakeCanvas())
         event = SimpleNamespace(inaxes="axes", x=0, y=0, xdata=1, ydata=2, button=None, step=3, key=None)
 
         bridge._on_scroll(event)
 
-        self.assertEqual(plotter.scrolls[0].step, 3.0)
+        self.assertEqual(plotter.scrolls[0].step, 1.0)
+        self.assertEqual(plotter.scroll_base_scales[0], 1.2)
+
+    def test_scroll_raw_mode_keeps_backend_step(self):
+        plotter = FakePlotter()
+        bridge = MatplotlibEventBridge(plotter, FakeCanvas())
+        bridge.scroll_step_mode = "raw"
+        event = SimpleNamespace(inaxes="axes", x=0, y=0, xdata=1, ydata=2, button=None, step=-4, key=None)
+
+        bridge._on_scroll(event)
+
+        self.assertEqual(plotter.scrolls[0].step, -4.0)
+
+    def test_scroll_uses_configured_zoom_base_scale(self):
+        plotter = FakePlotter()
+        bridge = MatplotlibEventBridge(plotter, FakeCanvas())
+        bridge.scroll_zoom_base_scale = 1.08
+        event = SimpleNamespace(inaxes="axes", x=0, y=0, xdata=1, ydata=2, button=None, step=1, key=None)
+
+        bridge._on_scroll(event)
+
+        self.assertEqual(plotter.scroll_base_scales[0], 1.08)
 
     def test_motion_outside_axes_clears_coordinate_readout(self):
         plotter = FakePlotter()

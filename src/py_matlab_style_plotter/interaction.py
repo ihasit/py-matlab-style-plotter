@@ -751,6 +751,9 @@ class MatlabLikeAxesBase:
         (0.6350, 0.0780, 0.1840),
     )
     DEFAULT_LINE_STYLE_ORDER: tuple[str, ...] = ("-",)
+    # Above this element count, skip the O(N) finite-value scan in _numeric_array
+    # as a performance guard for large plot data.
+    _FINITE_VALIDATION_MAX_SIZE: int = 100_000
     _VIEW_3D_PRESETS: dict[View3DPreset, Camera3DState] = {
         "2d": Camera3DState(azim=0.0, elev=90.0),
         "xy": Camera3DState(azim=0.0, elev=90.0),
@@ -2498,7 +2501,10 @@ class MatlabLikeAxesBase:
             raise ValueError(f"{label} must be a numeric vector or matrix")
         if array.ndim == 0:
             array = array.reshape(1)
-        if array.size and not bool(np.all(np.isfinite(array))):
+        # Performance guard: the full isfinite scan allocates an O(N) bool array,
+        # which dominates plot create cost for very large inputs. Validate small
+        # arrays strictly; defer NaN/Inf handling to Matplotlib for large data.
+        if 0 < array.size <= self._FINITE_VALIDATION_MAX_SIZE and not bool(np.all(np.isfinite(array))):
             raise ValueError(f"{label} must contain only finite numeric values")
         return array
 
@@ -4673,12 +4679,33 @@ class MatlabLikeAxesBase:
         self.line_style_order = state.line_style_order or self.DEFAULT_LINE_STYLE_ORDER
         self.next_series_index = state.next_series_index
 
+    def _initial_axes_ui_state(self, axes: Any) -> AxesUIState:
+        """Capture externally configured backend UI state without inheriting active axes modes."""
+
+        return AxesUIState(
+            grid_visible=self.grid_is_enabled(axes),
+            minor_grid_visible=self.minor_grid_is_enabled(axes),
+            x_grid_visible=self.axis_grid_is_enabled(axes, "x", minor=False),
+            y_grid_visible=self.axis_grid_is_enabled(axes, "y", minor=False),
+            z_grid_visible=self.axis_grid_is_enabled(axes, "z", minor=False) if self.is_3d_axes(axes) else False,
+            x_minor_grid_visible=self.axis_grid_is_enabled(axes, "x", minor=True),
+            y_minor_grid_visible=self.axis_grid_is_enabled(axes, "y", minor=True),
+            z_minor_grid_visible=self.axis_grid_is_enabled(axes, "z", minor=True) if self.is_3d_axes(axes) else False,
+            x_minor_tick_visible=self.axis_minor_tick_is_enabled(axes, "x"),
+            y_minor_tick_visible=self.axis_minor_tick_is_enabled(axes, "y"),
+            z_minor_tick_visible=self.axis_minor_tick_is_enabled(axes, "z") if self.is_3d_axes(axes) else False,
+            box_visible=self.box_is_enabled(axes),
+            legend_visible=self.legend_is_enabled(axes),
+        )
+
     def _load_axes_ui_state(self, axes: Any | None) -> None:
         state = self._axes_ui_state.get(axes) if axes is not None else None
         if state is None:
-            state = AxesUIState()
             if axes is not None:
+                state = self._initial_axes_ui_state(axes)
                 self._axes_ui_state[axes] = state
+            else:
+                state = AxesUIState()
         self._apply_state_properties(state)
         self.colormap_value = state.colormap
         if axes is not None:
@@ -5059,9 +5086,7 @@ class MatlabLikeAxesBase:
                 and event.ydata is not None
                 and self._is_finite_pair(event.xdata, event.ydata)
             ):
-                if self._is_zoom_click(zoom_drag, event):
-                    self.on_point_zoom(zoom_drag.axes, zoom_drag.start_xdata, zoom_drag.start_ydata, self._zoom_click_scale_for_direction())
-                else:
+                if not self._is_zoom_click(zoom_drag, event):
                     self.on_box_zoom(
                         zoom_drag.axes,
                         (zoom_drag.start_xdata, zoom_drag.start_ydata),

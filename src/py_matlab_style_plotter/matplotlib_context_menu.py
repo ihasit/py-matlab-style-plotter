@@ -443,11 +443,15 @@ class MatplotlibContextMenu:
         self._draw_menu(_MATLAB_MENU_ITEMS, x, y, level=0)
         self.fig.canvas.draw_idle()
 
-    def close(self) -> None:
+    def close(self, *, ignore_remove_errors: bool = False) -> None:
         if not self._artists:
             return
         for artist in list(self._artists):
-            artist.remove()
+            try:
+                artist.remove()
+            except (ValueError, RuntimeError, NotImplementedError):
+                if not ignore_remove_errors:
+                    raise
         self._artists.clear()
         self._items.clear()
         self._submenu_parent = None

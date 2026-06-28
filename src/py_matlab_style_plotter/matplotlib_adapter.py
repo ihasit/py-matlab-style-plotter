@@ -1736,6 +1736,12 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self._deactivate_matplotlib_toolbar_mode()
         self.update_mode_label()
 
+    def set_mode_label_enabled(self, enabled: bool) -> None:
+        """Show or hide the lightweight in-axes interaction mode label."""
+
+        self.mode_label_enabled = bool(enabled)
+        self.update_mode_label()
+
     def update_mode_label(self, axes: Any | None = None) -> None:
         self._remove_mode_label()
         if not self.mode_label_enabled or getattr(self.mode, "value", self.mode) == "none":
@@ -1905,7 +1911,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return
         try:
             remove()
-        except ValueError:
+        except (ValueError, RuntimeError, NotImplementedError):
             pass
 
     def _deactivate_matplotlib_toolbar_mode(self) -> None:
@@ -1956,9 +1962,28 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         return (((point_x - x) / x_span) ** 2 + ((point_y - y) / y_span) ** 2) ** 0.5
 
     def _finite_line_xy_arrays(self, line: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        # Cache the filtered arrays per line keyed on the raw data object identity.
+        # The cache invalidates automatically when set_xdata/set_ydata replaces the
+        # array objects; in-place mutation of the same object is intentionally not
+        # detected (matches Matplotlib's set_data redraw contract).
+        x_obj = line.get_xdata()
+        y_obj = line.get_ydata()
+        cache = getattr(line, "_pmsp_finite_cache", None)
+        if cache is not None and cache[0] is x_obj and cache[1] is y_obj:
+            return cache[2]
+        result = self._compute_finite_line_xy_arrays(line, x_obj, y_obj)
         try:
-            xdata = np.asarray(line.get_xdata(), dtype=float).ravel()
-            ydata = np.asarray(line.get_ydata(), dtype=float).ravel()
+            line._pmsp_finite_cache = (x_obj, y_obj, result)
+        except (AttributeError, TypeError):
+            pass
+        return result
+
+    def _compute_finite_line_xy_arrays(
+        self, line: Any, x_obj: Any, y_obj: Any
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        try:
+            xdata = np.asarray(x_obj, dtype=float).ravel()
+            ydata = np.asarray(y_obj, dtype=float).ravel()
         except (TypeError, ValueError):
             return self._finite_line_xy_arrays_fallback(line)
         count = min(xdata.size, ydata.size)
@@ -1967,6 +1992,10 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         xdata = xdata[:count]
         ydata = ydata[:count]
         finite = np.isfinite(xdata) & np.isfinite(ydata)
+        if finite.all():
+            # Zero-copy fast path: avoid the boolean fancy-index copy of the whole
+            # series when every point is finite (the common case for large data).
+            return xdata, ydata, np.arange(count)
         if not np.any(finite):
             return None
         indices = np.flatnonzero(finite)

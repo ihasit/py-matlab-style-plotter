@@ -30,6 +30,8 @@ class MatplotlibEventBridge:
         self.canvas = canvas if canvas is not None else self._infer_canvas(plotter)
         self._connection_ids: list[int] = []
         self._active_modifiers: set[str] = set()
+        self.scroll_zoom_base_scale = 1.2
+        self.scroll_step_mode = "unit"
 
     def connect(self) -> None:
         if self.canvas is None or self._connection_ids:
@@ -76,7 +78,27 @@ class MatplotlibEventBridge:
             self.plotter.clear_coordinate_readout()
 
     def _on_scroll(self, event: Any) -> None:
-        self.plotter.on_scroll(self._to_pointer_event(event))
+        pointer_event = self._to_pointer_event(event)
+        if self.scroll_step_mode == "unit":
+            pointer_event = PointerEvent(
+                axes=pointer_event.axes,
+                x=pointer_event.x,
+                y=pointer_event.y,
+                xdata=pointer_event.xdata,
+                ydata=pointer_event.ydata,
+                button=pointer_event.button,
+                step=self._unit_scroll_step(pointer_event.step),
+                modifiers=pointer_event.modifiers,
+                dblclick=pointer_event.dblclick,
+            )
+        self.plotter.on_scroll(pointer_event, base_scale=self.scroll_zoom_base_scale)
+
+    def _unit_scroll_step(self, step: float) -> float:
+        if step > 0:
+            return 1.0
+        if step < 0:
+            return -1.0
+        return 0.0
 
     def _on_key_press(self, event: Any) -> None:
         raw_key = getattr(event, "key", None)
