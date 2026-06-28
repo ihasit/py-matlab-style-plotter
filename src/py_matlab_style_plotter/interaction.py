@@ -7,6 +7,7 @@ state machine. GUI integrations should translate toolkit events into
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from enum import Enum
 from math import atan, cos, degrees, isfinite, radians, sin, tan
@@ -4983,7 +4984,11 @@ class MatlabLikeAxesBase:
             self._pan_3d_camera(self._drag, dx, dy)
             return
         limits = self._pan_limits(self._drag.start_limits, self._drag.start_x, self._drag.start_y, dx, dy)
-        self._set_user_limits(self._drag.axes, self._apply_motion_to_limits(self._drag.start_limits, limits, self.pan_motion))
+        self._set_user_limits(
+            self._drag.axes,
+            self._apply_motion_to_limits(self._drag.start_limits, limits, self.pan_motion),
+            save_state=False,
+        )
 
     def on_mouse_release(self, event: PointerEvent) -> None:
         post_modes = self._active_action_modes()
@@ -5163,19 +5168,21 @@ class MatlabLikeAxesBase:
         self.sync_linked_axes(axes, state.limits)
         self._save_axes_ui_state(axes)
 
-    def _set_user_limits(self, axes: Any, limits: AxesLimits) -> None:
+    def _set_user_limits(self, axes: Any, limits: AxesLimits, *, save_state: bool = True) -> None:
         current = self.get_limits(axes)
-        self.set_limits(axes, limits)
-        if limits.xlim != current.xlim:
-            self.xlim_mode = "manual"
-        if limits.ylim != current.ylim:
-            self.ylim_mode = "manual"
-        if limits.zlim is not None and limits.zlim != current.zlim:
-            self.zlim_mode = "manual"
-        if limits.clim is not None and limits.clim != current.clim:
-            self.clim_mode = "manual"
-        self.sync_linked_axes(axes, limits)
-        self._save_axes_ui_state(axes)
+        with self.batch_draw_idle():
+            self.set_limits(axes, limits)
+            if limits.xlim != current.xlim:
+                self.xlim_mode = "manual"
+            if limits.ylim != current.ylim:
+                self.ylim_mode = "manual"
+            if limits.zlim is not None and limits.zlim != current.zlim:
+                self.zlim_mode = "manual"
+            if limits.clim is not None and limits.clim != current.clim:
+                self.clim_mode = "manual"
+            self.sync_linked_axes(axes, limits)
+        if save_state:
+            self._save_axes_ui_state(axes)
 
     def _apply_grid_state(self, axes: Any, state: AxesUIState | ViewState) -> None:
         self.set_axis_grid_visible(axes, "x", state.x_grid_visible, minor=False)
@@ -5909,6 +5916,11 @@ class MatlabLikeAxesBase:
         """Set current axes limits for the concrete backend."""
 
         raise NotImplementedError
+
+    def batch_draw_idle(self) -> Any:
+        """Return a context manager that coalesces backend redraw requests."""
+
+        return nullcontext()
 
     def autoscale_axes(self, axes: Any, tight: bool = False) -> None:
         """Autoscale one axes for the concrete backend."""

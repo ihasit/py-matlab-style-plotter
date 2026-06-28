@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from math import isfinite
-from typing import Any
+from typing import Any, Iterator
 
 import copy
 import numpy as np
@@ -122,6 +123,8 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.brushed_points: list[BrushedPointsState] = []
         self.coordinate_readout: CoordinateReadout | None = None
         self.active_axes_style: ActiveAxesStyle | None = None
+        self._draw_idle_batch_depth = 0
+        self._draw_idle_pending_canvases: list[Any] = []
         self.linked_axes_state = {"x": False, "y": False, "xy": False}
         self.x_axes_linked = False
         self.selection_pick_tolerance = 0.05
@@ -671,9 +674,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes.set_zlim(*limits.zlim)
         if limits.clim is not None and hasattr(axes, "set_clim"):
             axes.set_clim(*limits.clim)
-        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        self._draw_idle(axes)
 
     def autoscale_axes(self, axes: Any, tight: bool = False) -> None:
         axes.relim()
@@ -1638,21 +1639,19 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         for line in getattr(axes, "lines", []):
             if not self._line_is_pickable(line):
                 continue
-            xdata = list(line.get_xdata())
-            ydata = list(line.get_ydata())
+            xy = self._finite_line_xy_arrays(line)
+            if xy is None:
+                continue
+            xdata, ydata, indices = xy
             zdata = self._line_zdata(line)
-            for index, (point_x, point_y) in enumerate(zip(xdata, ydata)):
-                try:
-                    px = float(point_x)
-                    py = float(point_y)
-                except (TypeError, ValueError):
-                    continue
-                if not (isfinite(px) and isfinite(py)):
-                    continue
-                pz = self._coerce_z_value(zdata, index)
-                distance = self._normalized_point_distance(axes, px, py, x, y) ** 2
-                if best is None or distance < best[0]:
-                    best = (distance, line, index, px, py, pz)
+            distances = ((xdata - x) / x_span) ** 2 + ((ydata - y) / y_span) ** 2
+            nearest_position = int(np.argmin(distances))
+            distance = float(distances[nearest_position])
+            if best is None or distance < best[0]:
+                index = int(indices[nearest_position])
+                px = float(xdata[nearest_position])
+                py = float(ydata[nearest_position])
+                best = (distance, line, index, px, py, self._coerce_z_value(zdata, index))
         if best is None:
             return None
         _, line, index, point_x, point_y, point_z = best
@@ -1688,20 +1687,24 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         for line in getattr(axes, "lines", []):
             if not self._line_is_pickable(line):
                 continue
-            xdata = list(line.get_xdata())
-            ydata = list(line.get_ydata())
+            xy = self._finite_line_xy_arrays(line)
+            if xy is None:
+                continue
+            xdata, ydata, indices = xy
+            in_box = (xdata >= x0) & (xdata <= x1) & (ydata >= y0) & (ydata <= y1)
+            if not np.any(in_box):
+                continue
             zdata = self._line_zdata(line)
-            points = []
-            for index, (point_x, point_y) in enumerate(zip(xdata, ydata)):
-                try:
-                    px = float(point_x)
-                    py = float(point_y)
-                except (TypeError, ValueError):
-                    continue
-                if isfinite(px) and isfinite(py) and x0 <= px <= x1 and y0 <= py <= y1:
-                    points.append((index, px, py, self._coerce_z_value(zdata, index)))
-            if points:
-                lines.append((line, tuple(points)))
+            points = tuple(
+                (
+                    int(index),
+                    float(point_x),
+                    float(point_y),
+                    self._coerce_z_value(zdata, int(index)),
+                )
+                for index, point_x, point_y in zip(indices[in_box], xdata[in_box], ydata[in_box])
+            )
+            lines.append((line, points))
         return lines
 
     def format_data_tip(self, line: Any, index: int, x: float, y: float, z: float | None = None) -> str:
@@ -1865,8 +1868,26 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
     def _draw_idle(self, axes: Any) -> None:
         canvas = getattr(getattr(axes, "figure", None), "canvas", None)
-        if canvas is not None:
-            canvas.draw_idle()
+        if canvas is None:
+            return
+        if self._draw_idle_batch_depth > 0:
+            if not any(pending is canvas for pending in self._draw_idle_pending_canvases):
+                self._draw_idle_pending_canvases.append(canvas)
+            return
+        canvas.draw_idle()
+
+    @contextmanager
+    def batch_draw_idle(self) -> Iterator[None]:
+        self._draw_idle_batch_depth += 1
+        try:
+            yield
+        finally:
+            self._draw_idle_batch_depth -= 1
+            if self._draw_idle_batch_depth == 0:
+                pending = self._draw_idle_pending_canvases
+                self._draw_idle_pending_canvases = []
+                for canvas in pending:
+                    canvas.draw_idle()
 
     def _axis_spans(self, axes: Any) -> tuple[float, float]:
         x0, x1 = axes.get_xlim()
@@ -1878,6 +1899,41 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def _normalized_point_distance(self, axes: Any, point_x: float, point_y: float, x: float, y: float) -> float:
         x_span, y_span = self._axis_spans(axes)
         return (((point_x - x) / x_span) ** 2 + ((point_y - y) / y_span) ** 2) ** 0.5
+
+    def _finite_line_xy_arrays(self, line: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        try:
+            xdata = np.asarray(line.get_xdata(), dtype=float).ravel()
+            ydata = np.asarray(line.get_ydata(), dtype=float).ravel()
+        except (TypeError, ValueError):
+            return self._finite_line_xy_arrays_fallback(line)
+        count = min(xdata.size, ydata.size)
+        if count == 0:
+            return None
+        xdata = xdata[:count]
+        ydata = ydata[:count]
+        finite = np.isfinite(xdata) & np.isfinite(ydata)
+        if not np.any(finite):
+            return None
+        indices = np.flatnonzero(finite)
+        return xdata[finite], ydata[finite], indices
+
+    def _finite_line_xy_arrays_fallback(self, line: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        xs = []
+        ys = []
+        indices = []
+        for index, (point_x, point_y) in enumerate(zip(line.get_xdata(), line.get_ydata())):
+            try:
+                px = float(point_x)
+                py = float(point_y)
+            except (TypeError, ValueError):
+                continue
+            if isfinite(px) and isfinite(py):
+                xs.append(px)
+                ys.append(py)
+                indices.append(index)
+        if not indices:
+            return None
+        return np.asarray(xs, dtype=float), np.asarray(ys, dtype=float), np.asarray(indices, dtype=int)
 
     def _is_finite_box(self, start: tuple[float, float], end: tuple[float, float]) -> bool:
         return self._is_finite_pair(start[0], start[1]) and self._is_finite_pair(end[0], end[1])

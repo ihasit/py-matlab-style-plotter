@@ -1274,6 +1274,34 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual((x, y), (2.0, 2.0))
         self.assertIsNone(z)
 
+    def test_find_nearest_line_point_skips_nonfinite_points_and_keeps_original_index(self):
+        axes = FakeAxes()
+        line = FakeLine([0.0, float("nan"), 4.0], [0.0, 2.0, 4.0], label="series")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        nearest = plotter.find_nearest_line_point(axes, 3.9, 4.1)
+
+        self.assertIsNotNone(nearest)
+        found_line, index, x, y, z = nearest
+        self.assertIs(found_line, line)
+        self.assertEqual(index, 2)
+        self.assertEqual((x, y), (4.0, 4.0))
+        self.assertIsNone(z)
+
+    def test_find_nearest_line_point_uses_fallback_for_mixed_data(self):
+        axes = FakeAxes()
+        line = FakeLine([0.0, "bad", 4.0], [0.0, 2.0, 4.0], label="series")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        nearest = plotter.find_nearest_line_point(axes, 4.0, 4.0)
+
+        self.assertIsNotNone(nearest)
+        _line, index, x, y, _z = nearest
+        self.assertEqual(index, 2)
+        self.assertEqual((x, y), (4.0, 4.0))
+
     def test_create_data_tip_adds_annotation_and_stores_tip(self):
         axes = FakeAxes()
         line = FakeLine([1.0, 2.0, 3.0], [1.0, 4.0, 9.0], label="quad")
@@ -1611,6 +1639,19 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(state.artist.args[:2], ([1.0, 2.0], [1.0, 2.0]))
         self.assertIn(state.artist, axes.collections)
 
+    def test_brush_box_skips_nonfinite_points_and_keeps_original_indices(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, float("nan"), 2.0, 8.0], [1.0, 2.0, 2.0, 8.0], label="series")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.brush_box(axes, (0.5, 0.5), (2.5, 2.5), frozenset())
+
+        self.assertEqual(len(plotter.brushed_points), 1)
+        state = plotter.brushed_points[0]
+        self.assertEqual(state.indices, (0, 2))
+        self.assertEqual(state.artist.args[:2], ([1.0, 2.0], [1.0, 2.0]))
+
     def test_brush_box_replaces_or_adds_brushed_points_based_on_modifier(self):
         axes = FakeAxes()
         line1 = FakeLine([1.0], [1.0], label="a")
@@ -1651,6 +1692,16 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
 
         self.assertEqual(plotter.selected_lines, [])
         self.assertEqual(axes.figure.canvas.draw_count, 0)
+
+    def test_batch_draw_idle_coalesces_multiple_limit_redraws(self):
+        axes = FakeAxes()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        with plotter.batch_draw_idle():
+            plotter.set_limits(axes, AxesLimits((1.0, 2.0), (3.0, 4.0)))
+            plotter.set_limits(axes, AxesLimits((2.0, 3.0), (4.0, 5.0)))
+
+        self.assertEqual(axes.figure.canvas.draw_count, 1)
 
     def test_empty_brush_box_clears_existing_selection_and_redraws(self):
         axes = FakeAxes()
