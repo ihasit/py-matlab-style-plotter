@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.1.3"
+version = "0.1.4"
 ```
 
 Use semantic versioning:
@@ -37,10 +37,10 @@ Recommended release flow:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.3"
-git tag -a v0.1.3 -m "Release v0.1.3"
+git commit -m "Release v0.1.4"
+git tag -a v0.1.4 -m "Release v0.1.4"
 git push origin main
-git push origin v0.1.3
+git push origin v0.1.4
 ```
 
 On GitHub, pushing a `v*` tag triggers `.github/workflows/release.yml`. The
@@ -53,7 +53,7 @@ workflow:
 - uploads `dist/*` as release assets
 
 The generated wheel is universal for this pure-Python package, for example
-`py_matlab_style_plotter-0.1.3-py3-none-any.whl`.
+`py_matlab_style_plotter-0.1.4-py3-none-any.whl`.
 
 Do not commit generated package artifacts. `.gitignore` excludes `dist/`,
 `build/`, `*.egg-info/`, and `*.whl`; GitHub Actions should recreate them for
@@ -70,7 +70,7 @@ For reproducible project dependencies, pin a Git tag:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.3",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.4",
 ]
 ```
 
@@ -92,7 +92,7 @@ fig, ax = plt.subplots()
 
 plotter = MatplotlibAxesPlotter(ax)
 context_menu = MatplotlibContextMenu(fig, plotter)
-bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
+bridge = MatplotlibContextMenuEventBridge(plotter, context_menu=context_menu)
 bridge.connect()
 
 plotter.plot([0, 1, 2, 3], [0, 1, 0, 1], "o-", DisplayName="signal")
@@ -106,6 +106,8 @@ plt.show()
 `MatplotlibContextMenu` draws the MATLAB-style right-click menu.  
 `MatplotlibContextMenuEventBridge` translates Matplotlib events into the
 backend-neutral interaction state machine and routes right-clicks to the menu.
+Use `py_matlab_style_plotter.__version__` when an application needs to display
+or log the installed package version.
 
 ## 4. Plotting Commands
 
@@ -272,9 +274,13 @@ widgets, so opening the menu does not create extra axes.
 
 ```python
 context_menu = MatplotlibContextMenu(fig, plotter)
-bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
+bridge = MatplotlibContextMenuEventBridge(plotter, context_menu=context_menu)
 bridge.connect()
 ```
+
+Applications that already own their GUI right-click handling can call
+`context_menu.open(x, y, axes)` directly, where `x` and `y` are figure
+coordinates.
 
 The menu includes:
 

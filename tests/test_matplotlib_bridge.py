@@ -227,6 +227,18 @@ class MatplotlibEventBridgeTest(unittest.TestCase):
 
         self.assertEqual(plotter.scroll_base_scales[0], 1.08)
 
+    def test_scroll_step_mode_rejects_invalid_values(self):
+        bridge = MatplotlibEventBridge(FakePlotter(), FakeCanvas())
+
+        with self.assertRaises(ValueError):
+            bridge.scroll_step_mode = "pixel"
+
+    def test_scroll_zoom_base_scale_rejects_non_zooming_values(self):
+        bridge = MatplotlibEventBridge(FakePlotter(), FakeCanvas())
+
+        with self.assertRaises(ValueError):
+            bridge.scroll_zoom_base_scale = 1.0
+
     def test_motion_outside_axes_clears_coordinate_readout(self):
         plotter = FakePlotter()
         bridge = MatplotlibEventBridge(plotter, FakeCanvas())

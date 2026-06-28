@@ -43,6 +43,40 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         menu.close()
         plt.close(fig)
 
+    def test_public_open_opens_menu_without_private_method(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        menu.open(0.2, 0.8, axes)
+
+        self.assertGreater(len(menu._items), 0)
+        self.assertIs(plotter.active_axes, axes)
+        menu.close()
+        plt.close(fig)
+
+    def test_context_menu_bridge_can_infer_canvas(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        bridge = MatplotlibContextMenuEventBridge(plotter, context_menu=menu)
+
+        self.assertIs(bridge.canvas, fig.canvas)
+        self.assertIs(menu.actions.bridge, bridge)
+        plt.close(fig)
+
+    def test_context_menu_bridge_accepts_menu_as_second_argument(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        bridge = MatplotlibContextMenuEventBridge(plotter, menu)
+
+        self.assertIs(bridge.canvas, fig.canvas)
+        self.assertIs(menu.actions.bridge, bridge)
+        plt.close(fig)
+
     def test_menu_action_toggles_plotter_mode(self):
         fig, axes = plt.subplots()
         plotter = MatplotlibAxesPlotter(axes)

@@ -85,7 +85,7 @@ def main() -> None:
     status_text = fig.text(0.08, 0.015, "", ha="left", va="center", fontsize=9)
     plotter = DemoPlotter(ax2d, status_text)
     context_menu = MatplotlibContextMenu(fig, plotter)
-    bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
+    bridge = MatplotlibContextMenuEventBridge(plotter, context_menu=context_menu)
     bridge.connect()
     fig._py_matlab_style_context_menu = context_menu
     plotter.push_current_view(ax2d)

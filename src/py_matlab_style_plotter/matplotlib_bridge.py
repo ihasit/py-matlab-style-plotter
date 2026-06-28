@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from .interaction import InteractionMode, MouseButton, PointerEvent, View3DPreset
 from .matplotlib_adapter import MatplotlibAxesPlotter
@@ -30,8 +30,30 @@ class MatplotlibEventBridge:
         self.canvas = canvas if canvas is not None else self._infer_canvas(plotter)
         self._connection_ids: list[int] = []
         self._active_modifiers: set[str] = set()
-        self.scroll_zoom_base_scale = 1.2
-        self.scroll_step_mode = "unit"
+        self._scroll_zoom_base_scale = 1.2
+        self._scroll_step_mode: Literal["unit", "raw"] = "unit"
+
+    @property
+    def scroll_zoom_base_scale(self) -> float:
+        return self._scroll_zoom_base_scale
+
+    @scroll_zoom_base_scale.setter
+    def scroll_zoom_base_scale(self, value: float) -> None:
+        scale = float(value)
+        if scale <= 1.0:
+            raise ValueError("scroll_zoom_base_scale must be greater than 1.0")
+        self._scroll_zoom_base_scale = scale
+
+    @property
+    def scroll_step_mode(self) -> Literal["unit", "raw"]:
+        return self._scroll_step_mode
+
+    @scroll_step_mode.setter
+    def scroll_step_mode(self, value: Literal["unit", "raw"] | str) -> None:
+        normalized = str(value).lower()
+        if normalized not in {"unit", "raw"}:
+            raise ValueError("scroll_step_mode must be 'unit' or 'raw'")
+        self._scroll_step_mode = normalized  # type: ignore[assignment]
 
     def connect(self) -> None:
         if self.canvas is None or self._connection_ids:

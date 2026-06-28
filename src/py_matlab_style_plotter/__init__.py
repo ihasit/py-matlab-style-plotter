@@ -1,5 +1,12 @@
 """MATLAB-like plotter primitives."""
 
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("py-matlab-style-plotter")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
+
 from .interaction import (
     AreaSeries,
     AxisDirection,
@@ -76,59 +83,14 @@ from .matplotlib_context_menu import (
 )
 
 __all__ = [
-    "AreaSeries",
-    "AxesLimits",
-    "AspectMode",
-    "AspectRatioMode",
-    "AxisDirection",
-    "AxisScale",
-    "BoxAspectMode",
-    "AxisLayer",
-    "BarSeries",
-    "Camera3DState",
-    "CameraMode",
-    "CameraProjection",
-    "CameraVectorMode",
-    "CameraViewAngleMode",
-    "ConstantLineSeries",
-    "ErrorBarSeries",
-    "FillSeries",
-    "HistogramSeries",
-    "ContourSeries",
-    "ImageSeries",
+    "__version__",
     "InteractionMode",
-    "LinkAxesAxis",
-    "MatlabLikeAxesBase",
     "MouseButton",
-    "NextPlotMode",
-    "Pan3DMode",
-    "PColorSeries",
-    "QuiverSeries",
-    "Plot3Series",
-    "PlotSeries",
     "PointerEvent",
-    "RotateStyle",
-    "SurfaceSeries",
-    "AnnotationSeries",
-    "RoseSeries",
-    "HeatmapSeries",
-    "ParetoSeries",
-    "PieSeries",
-    "PolarHistogramSeries",
-    "PolarSeries",
-    "SpySeries",
-    "Scatter3Series",
-    "ScatterSeries",
-    "Stem3Series",
-    "StemSeries",
-    "TextSeries",
-    "TickDirection",
-    "ToolMotion",
     "ToolState",
+    "ToolMotion",
+    "RotateStyle",
     "View3DPreset",
-    "ViewState",
-    "XAxisLocation",
-    "YAxisLocation",
     "ZoomDirection",
     "Zoom3DMode",
     "ZoomRightClickAction",
@@ -137,11 +99,4 @@ __all__ = [
     "MatplotlibContextMenu",
     "MatplotlibContextMenuActions",
     "MatplotlibContextMenuEventBridge",
-    "DataTip",
-    "SelectedDataTipState",
-    "SelectedLineState",
-    "CoordinateReadout",
-    "ActiveAxesStyle",
-    "BrushedPointsState",
-    "SpineStyle",
 ]

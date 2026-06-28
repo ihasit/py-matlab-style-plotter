@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
@@ -437,11 +439,16 @@ class MatplotlibContextMenu:
         self._submenu_parent = None
         self._hover_patch = None
 
-    def _open(self, x: float, y: float, axes) -> None:
+    def open(self, x: float, y: float, axes) -> None:
+        """Open the figure-level menu at figure coordinates ``x``/``y``."""
+
         self.close()
         self.plotter.set_active_axes(axes)
         self._draw_menu(_MATLAB_MENU_ITEMS, x, y, level=0)
         self.fig.canvas.draw_idle()
+
+    def _open(self, x: float, y: float, axes) -> None:
+        self.open(x, y, axes)
 
     def close(self, *, ignore_remove_errors: bool = False) -> None:
         if not self._artists:
@@ -930,7 +937,17 @@ class MatplotlibContextMenu:
 
 
 class MatplotlibContextMenuEventBridge(MatplotlibEventBridge):
-    def __init__(self, plotter: MatplotlibAxesPlotter, canvas, context_menu: MatplotlibContextMenu) -> None:
+    def __init__(
+        self,
+        plotter: MatplotlibAxesPlotter,
+        canvas: Any | None = None,
+        context_menu: MatplotlibContextMenu | None = None,
+    ) -> None:
+        if isinstance(canvas, MatplotlibContextMenu) and context_menu is None:
+            context_menu = canvas
+            canvas = None
+        if context_menu is None:
+            raise TypeError("context_menu is required")
         super().__init__(plotter, canvas)
         self.context_menu = context_menu
         self.context_menu.actions.set_bridge(self)

@@ -48,7 +48,7 @@ includes the Matplotlib adapter and event bridge.
 The package version is defined in `pyproject.toml`:
 
 ```toml
-version = "0.1.3"
+version = "0.1.4"
 ```
 
 Use semantic versioning:
@@ -62,10 +62,10 @@ change, and create a matching Git tag:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.3"
-git tag -a v0.1.3 -m "Release v0.1.3"
+git commit -m "Release v0.1.4"
+git tag -a v0.1.4 -m "Release v0.1.4"
 git push origin main
-git push origin v0.1.3
+git push origin v0.1.4
 ```
 
 Other projects should pin a tag instead of tracking `main`:
@@ -73,7 +73,7 @@ Other projects should pin a tag instead of tracking `main`:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.3",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.4",
 ]
 ```
 
@@ -97,7 +97,7 @@ from py_matlab_style_plotter import (
 fig, ax = plt.subplots()
 plotter = MatplotlibAxesPlotter(ax)
 context_menu = MatplotlibContextMenu(fig, plotter)
-bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
+bridge = MatplotlibContextMenuEventBridge(plotter, context_menu=context_menu)
 bridge.connect()
 
 plotter.plot([0, 1, 2, 3], [0, 1, 0, 1], "o-", DisplayName="demo")
@@ -107,6 +107,9 @@ plotter.hold("on")
 
 plt.show()
 ```
+
+Use `py_matlab_style_plotter.__version__` when an application needs to display
+or log the installed package version.
 
 ## Demo
 
