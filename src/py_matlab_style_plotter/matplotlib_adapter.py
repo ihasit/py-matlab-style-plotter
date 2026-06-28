@@ -118,6 +118,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         super().__init__(axes)
         self._zoom_box_artist: Any | None = None
         self._brush_box_artist: Any | None = None
+        self._mode_label_artist: Any | None = None
         self.data_tips: list[DataTip] = []
         self.selected_lines: list[SelectedLineState] = []
         self.selected_data_tips: list[SelectedDataTipState] = []
@@ -133,6 +134,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.selection_pick_tolerance = 0.05
         self.data_tip_pick_tolerance = 0.05
         self.coordinate_readout_z_tolerance = 0.05
+        self.mode_label_enabled = True
         self.tick_length_points_per_unit = 350.0
         if axes is not None:
             self.on_active_axes_changed(axes)
@@ -1582,9 +1584,11 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def on_active_axes_changed(self, axes: Any | None) -> None:
         self.restore_active_axes_highlight()
         if axes is None:
+            self._remove_mode_label()
             return
         self._disable_default_3d_mouse_rotation(axes)
         self.apply_active_axes_highlight(axes)
+        self.update_mode_label(axes)
 
     def _disable_default_3d_mouse_rotation(self, axes: Any) -> None:
         if not self.is_3d_axes(axes):
@@ -1730,6 +1734,64 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
     def on_mode_changed(self, mode: Any) -> None:
         self._deactivate_matplotlib_toolbar_mode()
+        self.update_mode_label()
+
+    def update_mode_label(self, axes: Any | None = None) -> None:
+        self._remove_mode_label()
+        if not self.mode_label_enabled or getattr(self.mode, "value", self.mode) == "none":
+            return
+        axes = axes if axes is not None else self.active_axes or self.axes
+        if axes is None:
+            return
+        label = self._format_mode_label()
+        text = getattr(axes, "text", None)
+        if text is None:
+            return
+        try:
+            self._mode_label_artist = text(
+                0.015,
+                0.985,
+                label,
+                transform=axes.transAxes,
+                ha="left",
+                va="top",
+                fontsize=8,
+                color="#1f1f1f",
+                bbox={
+                    "boxstyle": "round,pad=0.22",
+                    "facecolor": "#ffffff",
+                    "edgecolor": "#8a8a8a",
+                    "linewidth": 0.6,
+                    "alpha": 0.86,
+                },
+                zorder=10_500,
+                clip_on=False,
+            )
+        except (TypeError, AttributeError, ValueError):
+            self._mode_label_artist = None
+            return
+        self._draw_idle(axes)
+
+    def _remove_mode_label(self) -> None:
+        artist = self._mode_label_artist
+        self._mode_label_artist = None
+        if artist is None:
+            return
+        self._remove_artist(artist)
+        axes = getattr(artist, "axes", None)
+        if axes is not None:
+            self._draw_idle(axes)
+
+    def _format_mode_label(self) -> str:
+        labels = {
+            "pan": "Pan",
+            "zoom": "Zoom",
+            "rotate3d": "Rotate 3D",
+            "data_cursor": "Cursor",
+            "select": "Select",
+            "brush": "Brush",
+        }
+        return labels.get(str(getattr(self.mode, "value", self.mode)), str(getattr(self.mode, "value", self.mode)))
 
     def _restore_line_state(self, state: SelectedLineState) -> None:
         self._remove_artist(state.highlight)

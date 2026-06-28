@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.1.0"
+version = "0.1.1"
 ```
 
 Use semantic versioning:
@@ -37,10 +37,10 @@ Recommended release flow:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.0"
-git tag -a v0.1.0 -m "Release v0.1.0"
+git commit -m "Release v0.1.1"
+git tag -a v0.1.1 -m "Release v0.1.1"
 git push origin main
-git push origin v0.1.0
+git push origin v0.1.1
 ```
 
 On GitHub, pushing a `v*` tag triggers `.github/workflows/release.yml`. The
@@ -53,7 +53,7 @@ workflow:
 - uploads `dist/*` as release assets
 
 The generated wheel is universal for this pure-Python package, for example
-`py_matlab_style_plotter-0.1.0-py3-none-any.whl`.
+`py_matlab_style_plotter-0.1.1-py3-none-any.whl`.
 
 Do not commit generated package artifacts. `.gitignore` excludes `dist/`,
 `build/`, `*.egg-info/`, and `*.whl`; GitHub Actions should recreate them for
@@ -70,7 +70,7 @@ For reproducible project dependencies, pin a Git tag:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.0",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.1",
 ]
 ```
 
@@ -82,12 +82,17 @@ pattern with a `git+ssh://` or `git+https://` URL.
 ```python
 import matplotlib.pyplot as plt
 
-from py_matlab_style_plotter import MatplotlibAxesPlotter, MatplotlibEventBridge
+from py_matlab_style_plotter import (
+    MatplotlibAxesPlotter,
+    MatplotlibContextMenu,
+    MatplotlibContextMenuEventBridge,
+)
 
 fig, ax = plt.subplots()
 
 plotter = MatplotlibAxesPlotter(ax)
-bridge = MatplotlibEventBridge(plotter, fig.canvas)
+context_menu = MatplotlibContextMenu(fig, plotter)
+bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
 bridge.connect()
 
 plotter.plot([0, 1, 2, 3], [0, 1, 0, 1], "o-", DisplayName="signal")
@@ -98,8 +103,9 @@ plt.show()
 ```
 
 `MatplotlibAxesPlotter` owns the MATLAB-like axes behavior.  
-`MatplotlibEventBridge` translates Matplotlib events into the backend-neutral
-interaction state machine.
+`MatplotlibContextMenu` draws the MATLAB-style right-click menu.  
+`MatplotlibContextMenuEventBridge` translates Matplotlib events into the
+backend-neutral interaction state machine and routes right-clicks to the menu.
 
 ## 4. Plotting Commands
 
@@ -194,6 +200,14 @@ plotter.selectmode("on")
 plotter.brush("on")
 ```
 
+When a non-`none` mode is active, the Matplotlib adapter shows a small mode
+label in the active axes. Disable it if your application provides its own
+status indicator:
+
+```python
+plotter.mode_label_enabled = False
+```
+
 Or use the event bridge keyboard shortcuts in the demo:
 
 | Key | Action |
@@ -253,8 +267,14 @@ on the development machine with Matplotlib 3.11.0 and the Agg backend:
 
 ## 9. Right-Click Context Menu
 
-The demo implements a figure-level context menu rather than Matplotlib button
+The library includes a figure-level context menu rather than Matplotlib button
 widgets, so opening the menu does not create extra axes.
+
+```python
+context_menu = MatplotlibContextMenu(fig, plotter)
+bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
+bridge.connect()
+```
 
 The menu includes:
 
@@ -267,8 +287,10 @@ The menu includes:
 - link axes: Link X, Link Y, Link X/Y
 - selection: Hide Selected, Clear Selection, Delete
 
-Marker, line, and color commands apply to selected lines if any are selected;
-otherwise they apply to all lines in the active axes.
+The current interaction mode is marked with a check in the mode section.
+
+Marker, line, and color commands require selected lines. When no line is
+selected, those menu entries are disabled.
 
 ## 10. Data Cursor, Select, and Brush
 
@@ -359,6 +381,7 @@ env MPLCONFIGDIR=/private/tmp/pyMatlabStylePlotter-mpl \
   python -m unittest \
   tests.test_matplotlib_adapter \
   tests.test_matplotlib_bridge \
+  tests.test_matplotlib_context_menu \
   tests.test_interaction \
   tests.test_matplotlib_3d_overlay
 ```
@@ -380,7 +403,8 @@ python -m py_compile \
   Matplotlib.
 - Backend adapters should implement drawing, limit, camera, and UI hooks.
 - For Matplotlib apps, use `MatplotlibAxesPlotter` plus
-  `MatplotlibEventBridge`.
+  `MatplotlibContextMenuEventBridge` when you want the built-in right-click
+  menu, or `MatplotlibEventBridge` when your app owns all UI.
 - If your app has its own toolbar, query `pan_state()`, `zoom_state()`, and
   `rotate3d_state()` for active state and tool properties.
 - Use `button_down_filter`, `action_pre_callback`, and `action_post_callback`

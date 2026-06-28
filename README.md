@@ -48,7 +48,7 @@ includes the Matplotlib adapter and event bridge.
 The package version is defined in `pyproject.toml`:
 
 ```toml
-version = "0.1.0"
+version = "0.1.1"
 ```
 
 Use semantic versioning:
@@ -62,10 +62,10 @@ change, and create a matching Git tag:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.0"
-git tag -a v0.1.0 -m "Release v0.1.0"
+git commit -m "Release v0.1.1"
+git tag -a v0.1.1 -m "Release v0.1.1"
 git push origin main
-git push origin v0.1.0
+git push origin v0.1.1
 ```
 
 Other projects should pin a tag instead of tracking `main`:
@@ -73,7 +73,7 @@ Other projects should pin a tag instead of tracking `main`:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.0",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.1",
 ]
 ```
 
@@ -88,11 +88,16 @@ GitHub Release. Build artifacts such as `dist/`, `build/`, `*.egg-info/`, and
 ```python
 import matplotlib.pyplot as plt
 
-from py_matlab_style_plotter import MatplotlibAxesPlotter, MatplotlibEventBridge
+from py_matlab_style_plotter import (
+    MatplotlibAxesPlotter,
+    MatplotlibContextMenu,
+    MatplotlibContextMenuEventBridge,
+)
 
 fig, ax = plt.subplots()
 plotter = MatplotlibAxesPlotter(ax)
-bridge = MatplotlibEventBridge(plotter, fig.canvas)
+context_menu = MatplotlibContextMenu(fig, plotter)
+bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, context_menu)
 bridge.connect()
 
 plotter.plot([0, 1, 2, 3], [0, 1, 0, 1], "o-", DisplayName="demo")
@@ -147,6 +152,7 @@ env MPLCONFIGDIR=/private/tmp/pyMatlabStylePlotter-mpl \
   python -m unittest \
   tests.test_matplotlib_adapter \
   tests.test_matplotlib_bridge \
+  tests.test_matplotlib_context_menu \
   tests.test_interaction \
   tests.test_matplotlib_3d_overlay
 ```

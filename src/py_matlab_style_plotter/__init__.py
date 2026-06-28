@@ -69,6 +69,11 @@ from .matplotlib_adapter import (
     SpineStyle,
 )
 from .matplotlib_bridge import MatplotlibEventBridge
+from .matplotlib_context_menu import (
+    MatplotlibContextMenu,
+    MatplotlibContextMenuActions,
+    MatplotlibContextMenuEventBridge,
+)
 
 __all__ = [
     "AreaSeries",
@@ -129,6 +134,9 @@ __all__ = [
     "ZoomRightClickAction",
     "MatplotlibAxesPlotter",
     "MatplotlibEventBridge",
+    "MatplotlibContextMenu",
+    "MatplotlibContextMenuActions",
+    "MatplotlibContextMenuEventBridge",
     "DataTip",
     "SelectedDataTipState",
     "SelectedLineState",

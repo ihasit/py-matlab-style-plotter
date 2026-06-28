@@ -1,0 +1,164 @@
+import unittest
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+
+from py_matlab_style_plotter import (
+    InteractionMode,
+    MatplotlibAxesPlotter,
+    MatplotlibContextMenu,
+    MatplotlibContextMenuEventBridge,
+)
+
+
+class FakeMouseEvent:
+    def __init__(self, x, y, *, axes, button):
+        self.x = x
+        self.y = y
+        self.inaxes = axes
+        self.button = button
+        self.xdata = None
+        self.ydata = None
+        self.key = None
+
+
+class MatplotlibContextMenuTest(unittest.TestCase):
+    def test_right_click_opens_menu_without_creating_axes(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+        bridge = MatplotlibContextMenuEventBridge(plotter, fig.canvas, menu)
+
+        axes_count = len(fig.axes)
+        event = FakeMouseEvent(100, 100, axes=axes, button=3)
+
+        self.assertTrue(menu._on_press(event))
+        self.assertEqual(len(fig.axes), axes_count)
+        self.assertGreater(len(menu._items), 0)
+        self.assertIs(menu.actions.bridge, bridge)
+
+        menu.close()
+        plt.close(fig)
+
+    def test_menu_action_toggles_plotter_mode(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+        MatplotlibContextMenuEventBridge(plotter, fig.canvas, menu)
+
+        menu.actions.matlab_pan()
+
+        self.assertEqual(plotter.mode, InteractionMode.PAN)
+        self.assertIsNotNone(plotter._mode_label_artist)
+        self.assertEqual(plotter._mode_label_artist.get_text(), "Pan")
+        plt.close(fig)
+
+    def test_right_click_opens_menu_in_zoom_mode(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_mode("zoom")
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        event = FakeMouseEvent(100, 100, axes=axes, button=3)
+
+        self.assertTrue(menu._on_press(event))
+        self.assertGreater(len(menu._items), 0)
+
+        menu.close()
+        plt.close(fig)
+
+    def test_menu_marks_current_mode_with_check(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_mode("brush")
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        event = FakeMouseEvent(100, 100, axes=axes, button=3)
+
+        self.assertTrue(menu._on_press(event))
+        checked_lines = [line for line in fig.lines if line.get_gid() == "_py_matlab_style_context_menu_check"]
+        self.assertEqual(len(checked_lines), 1)
+
+        menu.close()
+        plt.close(fig)
+
+    def test_line_style_actions_apply_only_to_selected_line_and_refresh_legend(self):
+        fig, axes = plt.subplots()
+        line1, = axes.plot([0, 1], [0, 1], label="a", marker="o", color="blue")
+        line2, = axes.plot([0, 1], [1, 0], label="b", marker="s", color="orange")
+        axes.legend(loc="upper right")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.select_line(line2)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        menu.actions.matlab_marker_triangle()
+        menu.actions.matlab_color_red()
+
+        self.assertEqual(line1.get_marker(), "o")
+        self.assertEqual(line2.get_marker(), "^")
+        self.assertEqual(line1.get_color(), "blue")
+        self.assertEqual(line2.get_color(), menu.actions._COLORS["red"])
+
+        legend = axes.get_legend()
+        self.assertIsNotNone(legend)
+        handles = getattr(legend, "legend_handles", getattr(legend, "legendHandles", []))
+        self.assertEqual(handles[0].get_marker(), "o")
+        self.assertEqual(handles[1].get_marker(), "^")
+        self.assertEqual(handles[1].get_color(), menu.actions._COLORS["red"])
+
+        plt.close(fig)
+
+    def test_style_menu_is_disabled_without_selected_line(self):
+        fig, axes = plt.subplots()
+        line1, = axes.plot([0, 1], [0, 1], label="a", marker="o", color="blue")
+        line2, = axes.plot([0, 1], [1, 0], label="b", marker="s", color="orange")
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        event = FakeMouseEvent(100, 100, axes=axes, button=3)
+        self.assertTrue(menu._on_press(event))
+
+        disabled_style_items = [
+            item
+            for item in menu._items
+            if item["level"] == 0 and item["disabled"] and item["submenu"] is not None
+        ]
+        self.assertEqual(len(disabled_style_items), 3)
+
+        marker_item = next(item for item in disabled_style_items if item["patch"].get_y() < 1.0)
+        x = marker_item["patch"].get_x() + marker_item["patch"].get_width() / 2
+        y = marker_item["patch"].get_y() + marker_item["patch"].get_height() / 2
+        display_x, display_y = fig.transFigure.transform((x, y))
+        self.assertTrue(menu._on_press(FakeMouseEvent(display_x, display_y, axes=axes, button=1)))
+
+        self.assertTrue(all(item["level"] == 0 for item in menu._items))
+        menu.actions.matlab_marker_triangle()
+        menu.actions.matlab_color_red()
+        self.assertEqual(line1.get_marker(), "o")
+        self.assertEqual(line2.get_marker(), "s")
+        self.assertEqual(line1.get_color(), "blue")
+        self.assertEqual(line2.get_color(), "orange")
+
+        menu.close()
+        plt.close(fig)
+
+    def test_marker_none_icon_is_not_x_marker(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        menu._draw_marker_icon("marker_none", 0.5, 0.5, 10)
+
+        markers = [line.get_marker() for line in fig.lines]
+        self.assertIn("o", markers)
+        self.assertNotIn("x", markers)
+
+        menu.close()
+        plt.close(fig)
+
+
+if __name__ == "__main__":
+    unittest.main()
