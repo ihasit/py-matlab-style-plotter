@@ -19,7 +19,65 @@ python -m pip install -e ".[test]"
 
 For local commands without installation, set `PYTHONPATH=src`.
 
-## 2. Minimal Matplotlib Integration
+## 2. Versioning and External Projects
+
+The release version is managed in `pyproject.toml`:
+
+```toml
+version = "0.1.0"
+```
+
+Use semantic versioning:
+
+- `PATCH`: compatible bug fixes, performance fixes, and documentation updates
+- `MINOR`: compatible public API additions
+- `MAJOR`: incompatible public API or behavior changes
+
+Recommended release flow:
+
+```bash
+python -m unittest discover -s tests
+git commit -m "Release v0.1.0"
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin main
+git push origin v0.1.0
+```
+
+On GitHub, pushing a `v*` tag triggers `.github/workflows/release.yml`. The
+workflow:
+
+- installs the build tools
+- runs the unit tests
+- builds both `sdist` and wheel artifacts with `python -m build`
+- creates or updates the GitHub Release
+- uploads `dist/*` as release assets
+
+The generated wheel is universal for this pure-Python package, for example
+`py_matlab_style_plotter-0.1.0-py3-none-any.whl`.
+
+Do not commit generated package artifacts. `.gitignore` excludes `dist/`,
+`build/`, `*.egg-info/`, and `*.whl`; GitHub Actions should recreate them for
+each release tag.
+
+For another local project, use editable install while developing:
+
+```bash
+python -m pip install -e /Users/ltk/Codes/tools/pyMatlabStylePlotter
+```
+
+For reproducible project dependencies, pin a Git tag:
+
+```toml
+[project]
+dependencies = [
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.0",
+]
+```
+
+If the repository is moved to an internal Git server, use the same tag pinning
+pattern with a `git+ssh://` or `git+https://` URL.
+
+## 3. Minimal Matplotlib Integration
 
 ```python
 import matplotlib.pyplot as plt
@@ -43,7 +101,7 @@ plt.show()
 `MatplotlibEventBridge` translates Matplotlib events into the backend-neutral
 interaction state machine.
 
-## 3. Plotting Commands
+## 4. Plotting Commands
 
 The plotter accepts common MATLAB-like calling forms:
 
@@ -78,7 +136,7 @@ Supported command families include:
 MATLAB-style Name/Value properties are normalized where practical. For
 example, `DisplayName` maps to Matplotlib's `label`.
 
-## 4. Axes State
+## 5. Axes State
 
 Common MATLAB-like axes helpers:
 
@@ -106,7 +164,7 @@ The plotter tracks UI state per axes, including:
 - scales, ticks, tick labels, grid state, font/color state
 - active axes and view history
 
-## 5. View History
+## 6. View History
 
 The view history is scoped to axes. It supports MATLAB-like home/back/forward:
 
@@ -123,7 +181,7 @@ plotter.can_forward()
 
 For 3D axes, view history includes camera state and z limits.
 
-## 6. Interaction Modes
+## 7. Interaction Modes
 
 Use the tool helpers directly:
 
@@ -170,8 +228,12 @@ Axis shortcuts in the demo:
 | `w` | `axis vis3d` |
 | `O` | `axis off` |
 | `U` | `axis on` |
+| `j` | `axis ij` |
+| `k` | `axis xy` |
+| `2` | `view(2)` |
+| `3` | `view(3)` |
 
-## 7. Large Data Benchmark
+## 8. Large Data Benchmark
 
 Run the included benchmark:
 
@@ -188,12 +250,8 @@ on the development machine with Matplotlib 3.11.0 and the Agg backend:
 | raw Matplotlib | 0.121 s | 0.215 s | 0.164 s |
 | matrix plotter call | 0.377 s | 0.187 s | 0.168 s |
 | repeated plotter calls | 1.269 s | 0.188 s | 0.167 s |
-| `j` | `axis ij` |
-| `k` | `axis xy` |
-| `2` | `view(2)` |
-| `3` | `view(3)` |
 
-## 7. Right-Click Context Menu
+## 9. Right-Click Context Menu
 
 The demo implements a figure-level context menu rather than Matplotlib button
 widgets, so opening the menu does not create extra axes.
@@ -212,7 +270,7 @@ The menu includes:
 Marker, line, and color commands apply to selected lines if any are selected;
 otherwise they apply to all lines in the active axes.
 
-## 8. Data Cursor, Select, and Brush
+## 10. Data Cursor, Select, and Brush
 
 ### Data Cursor
 
@@ -246,7 +304,7 @@ Brush mode drag-selects data points in a rectangular region:
 This matches MATLAB's brush behavior more closely than treating brush as line
 selection.
 
-## 9. 3D Behavior
+## 11. 3D Behavior
 
 The default 3D interaction is intentionally separated by mode:
 
@@ -277,7 +335,7 @@ plotter.camdolly(0.1, 0.0, 0.0)
 plotter.camproj("orthographic")
 ```
 
-## 10. Linked Axes
+## 12. Linked Axes
 
 Link axes in a figure:
 
@@ -292,7 +350,7 @@ plotter.linkaxes(axes, "off")
 The initial linked view uses the union of existing limits. Later pan, zoom,
 and explicit limit commands synchronize linked axes.
 
-## 11. Running Tests
+## 13. Running Tests
 
 Recommended local verification:
 
@@ -316,7 +374,7 @@ python -m py_compile \
   examples/matplotlib_2d_3d_demo.py
 ```
 
-## 12. Notes for Integrators
+## 14. Notes for Integrators
 
 - The base state machine is in `interaction.py` and does not require
   Matplotlib.

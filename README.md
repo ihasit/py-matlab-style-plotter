@@ -43,6 +43,46 @@ python -m pip install -e ".[test]"
 Matplotlib and NumPy are runtime dependencies because the public package API
 includes the Matplotlib adapter and event bridge.
 
+## Versioning
+
+The package version is defined in `pyproject.toml`:
+
+```toml
+version = "0.1.0"
+```
+
+Use semantic versioning:
+
+- increment `PATCH` for compatible fixes and small documentation updates
+- increment `MINOR` for compatible public API additions
+- increment `MAJOR` for incompatible public API or behavior changes
+
+For a reusable internal release, update the version, run tests, commit the
+change, and create a matching Git tag:
+
+```bash
+python -m unittest discover -s tests
+git commit -m "Release v0.1.0"
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin main
+git push origin v0.1.0
+```
+
+Other projects should pin a tag instead of tracking `main`:
+
+```toml
+[project]
+dependencies = [
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.0",
+]
+```
+
+When the repository is hosted on GitHub, pushing a `v*` tag runs the release
+workflow in `.github/workflows/release.yml`. The workflow runs tests, builds
+the source distribution and universal wheel, and uploads `dist/*` to the
+GitHub Release. Build artifacts such as `dist/`, `build/`, `*.egg-info/`, and
+`*.whl` are ignored locally and should not be committed.
+
 ## Quick Start
 
 ```python
