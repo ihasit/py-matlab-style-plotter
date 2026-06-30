@@ -2725,6 +2725,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         axes1 = FakeAxes(with_spines=True)
         axes2 = FakeAxes(with_spines=True)
         plotter = MatplotlibAxesPlotter(axes1)
+        plotter.set_active_axes_highlight_enabled(True)
 
         self.assertIsInstance(plotter.active_axes_style, ActiveAxesStyle)
         self.assertEqual(axes1.spines["left"].get_edgecolor(), "#0072BD")
@@ -2736,6 +2737,21 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(axes1.spines["left"].get_linewidth(), 1.0)
         self.assertEqual(axes2.spines["left"].get_edgecolor(), "#0072BD")
         self.assertEqual(axes2.spines["left"].get_linewidth(), 1.8)
+
+    def test_active_axes_highlight_is_disabled_by_default(self):
+        axes1 = FakeAxes(with_spines=True)
+        axes2 = FakeAxes(with_spines=True)
+        plotter = MatplotlibAxesPlotter(axes1)
+
+        self.assertIsNone(plotter.active_axes_style)
+        self.assertEqual(axes1.spines["left"].get_edgecolor(), "black")
+        self.assertNotEqual(axes1.spines["left"].get_edgecolor(), "#0072BD")
+
+        plotter.set_active_axes(axes2)
+
+        self.assertIsNone(plotter.active_axes_style)
+        self.assertEqual(axes1.spines["left"].get_edgecolor(), "black")
+        self.assertEqual(axes2.spines["left"].get_edgecolor(), "black")
 
     def test_3d_axes_default_mouse_rotation_is_disabled_when_active(self):
         axes2d = FakeAxes()
@@ -2752,6 +2768,7 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
     def test_prepare_replace_reapplies_active_axes_highlight_after_cla(self):
         axes = FakeAxes(with_spines=True)
         plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes_highlight_enabled(True)
 
         plotter.prepare_for_plot(axes)
 

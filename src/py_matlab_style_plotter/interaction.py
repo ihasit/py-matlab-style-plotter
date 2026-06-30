@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from math import atan, cos, degrees, isfinite, radians, sin, tan
 from typing import Any, Callable, cast, Iterable, Literal, overload, Sequence
+import weakref
 
 try:
     import numpy as np
@@ -828,7 +829,7 @@ class MatlabLikeAxesBase:
         self.camera_up_vector_mode: CameraVectorMode = "auto"
         self.camera_projection: CameraProjection = "orthographic"
         self._color_scheme: str = "white"
-        self._axes_ui_state: dict[Any, AxesUIState] = {}
+        self._axes_ui_state: "weakref.WeakKeyDictionary[Any, AxesUIState]" = weakref.WeakKeyDictionary()
         self._subplot_axes: dict[tuple[int, int, int], Any] = {}
         if axes is not None:
             self._save_axes_ui_state(axes)

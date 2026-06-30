@@ -136,10 +136,13 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.data_tip_pick_tolerance = 0.05
         self.coordinate_readout_z_tolerance = 0.05
         self.mode_label_enabled = True
+        self.active_axes_highlight_enabled = False
         self.tick_length_points_per_unit = 350.0
         self.line_decimation_enabled = True
         self.line_decimation_threshold = 20_000
         self.line_decimation_max_buckets = 4_000
+        self.auto_register_existing = False
+        self.auto_refresh_on_draw = False
         self._decimation_reentry = False
         if axes is not None:
             self.on_active_axes_changed(axes)
@@ -713,6 +716,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                     continue
                 try:
                     set_data(full_xy[0], full_xy[1])
+                    self._record_decimated_token(line)
                 except Exception:
                     continue
         finally:
@@ -723,42 +727,262 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return
         registered = False
         for line in lines:
-            if not all(hasattr(line, name) for name in ("get_xdata", "get_ydata", "set_data")):
-                continue
-            try:
-                full_x = np.asarray(line.get_xdata(), dtype=float).ravel()
-                full_y = np.asarray(line.get_ydata(), dtype=float).ravel()
-            except (TypeError, ValueError):
-                continue
-            count = min(full_x.size, full_y.size)
-            if count <= self.line_decimation_threshold:
-                continue
-            full_x = full_x[:count]
-            full_y = full_y[:count]
-            try:
-                line._pmsp_full_xy = (full_x, full_y)
-                line._pmsp_full_x_sorted = bool(full_x.size and np.all(np.diff(full_x) >= 0))
-            except (AttributeError, TypeError):
-                continue
-            managed = getattr(axes, "_pmsp_decimated_lines", None)
-            if managed is None:
-                managed = set()
-                try:
-                    axes._pmsp_decimated_lines = managed
-                except (AttributeError, TypeError):
-                    continue
-            managed.add(line)
-            registered = True
+            registered = self._adopt_line(axes, line) or registered
         if not registered:
             return
+        self._wire_decimation_callbacks(axes)
+        self._apply_decimation(axes)
+
+    def _adopt_line(self, axes: Any, line: Any) -> bool:
+        if not all(hasattr(line, name) for name in ("get_xdata", "get_ydata", "set_data")):
+            return False
+        full_xy = getattr(line, "_pmsp_full_xy", None)
+        token = getattr(line, "_pmsp_decimated_token", None)
+        try:
+            current_x = line.get_xdata()
+            if full_xy is not None and current_x is token:
+                x_obj, y_obj = full_xy
+            else:
+                x_obj = current_x
+                y_obj = line.get_ydata()
+            full_x = np.asarray(x_obj, dtype=float).ravel()
+            full_y = np.asarray(y_obj, dtype=float).ravel()
+        except (TypeError, ValueError):
+            return False
+        count = min(full_x.size, full_y.size)
+        if count <= self.line_decimation_threshold:
+            return False
+        full_x = full_x[:count]
+        full_y = full_y[:count]
+        try:
+            line._pmsp_full_xy = (full_x, full_y)
+            line._pmsp_full_x_sorted = bool(full_x.size and np.all(np.diff(full_x) >= 0))
+        except (AttributeError, TypeError):
+            return False
+        managed = getattr(axes, "_pmsp_decimated_lines", None)
+        if managed is None:
+            managed = set()
+            try:
+                axes._pmsp_decimated_lines = managed
+            except (AttributeError, TypeError):
+                return False
+        try:
+            managed.add(line)
+        except TypeError:
+            return False
+        return True
+
+    def _wire_decimation_callbacks(self, axes: Any) -> None:
         callbacks = getattr(axes, "callbacks", None)
         connect = getattr(callbacks, "connect", None)
-        if callable(connect) and not hasattr(axes, "_pmsp_decimation_cid"):
+        if not callable(connect):
+            return
+        if not hasattr(axes, "_pmsp_decimation_cid"):
             try:
                 axes._pmsp_decimation_cid = connect("xlim_changed", lambda ax: self._apply_decimation(ax))
             except Exception:
                 pass
+        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
+        mpl_connect = getattr(canvas, "mpl_connect", None)
+        if callable(mpl_connect) and not hasattr(axes, "_pmsp_draw_cid"):
+            try:
+                axes._pmsp_draw_cid = mpl_connect("draw_event", lambda event: self._on_decimation_draw_event(axes, event))
+            except Exception:
+                pass
+
+    def _on_decimation_draw_event(self, axes: Any, _event: Any) -> None:
+        if not self.auto_refresh_on_draw or self._decimation_reentry:
+            return
+        try:
+            self._refresh_decimated_axes(axes)
+        except Exception:
+            return
+
+    def register_existing_artists(
+        self,
+        axes: Any = None,
+        *,
+        include_lines: bool = True,
+        include_scatter: bool = False,
+        include_images: bool = False,
+    ) -> list[Any]:
+        resolved = self._resolve_register_axes(axes)
+        for ax in resolved:
+            if include_lines:
+                self._register_decimation(ax, list(getattr(ax, "lines", []) or []))
+            # Scatter and image registration are reserved for a later tier.
+            _ = include_scatter, include_images
+        return self._managed_lines_for_axes(resolved)
+
+    def refresh_registered_artists(self, axes: Any = None) -> None:
+        for ax in self._resolve_register_axes(axes):
+            self._refresh_decimated_axes(ax)
+
+    def unregister_artists(self, axes: Any = None, artists: Any = None) -> None:
+        for ax in self._resolve_register_axes(axes):
+            managed = getattr(ax, "_pmsp_decimated_lines", None)
+            if not managed:
+                continue
+            if artists is None:
+                targets = list(managed)
+            else:
+                artist_list = list(artists) if isinstance(artists, (list, tuple, set)) else [artists]
+                targets = [artist for artist in artist_list if artist in managed]
+            self._decimation_reentry = True
+            try:
+                for line in targets:
+                    self._unmanage_line(ax, line, restore=True)
+            finally:
+                self._decimation_reentry = False
+            self._cleanup_decimation_axes(ax)
+
+    def get_original_data(self, artist: Any) -> Any:
+        full_xy = getattr(artist, "_pmsp_full_xy", None)
+        if full_xy is not None:
+            return full_xy[0].copy(), full_xy[1].copy()
+        get_data = getattr(artist, "get_data", None)
+        if callable(get_data):
+            try:
+                return get_data()
+            except Exception:
+                return None
+        return None
+
+    def restore_full_resolution(self, axes: Any = None) -> None:
+        """Restore managed lines to full data; the next xlim change re-decimates."""
+        for ax in self._resolve_register_axes(axes):
+            self._restore_decimated_lines(ax)
+
+    def _refresh_decimated_axes(self, axes: Any) -> None:
+        managed = getattr(axes, "_pmsp_decimated_lines", None)
+        if not managed:
+            return
+        for line in list(managed):
+            token = getattr(line, "_pmsp_decimated_token", None)
+            try:
+                current_x = line.get_xdata()
+            except Exception:
+                current_x = None
+            if token is None or current_x is not token:
+                if not self._adopt_line(axes, line):
+                    self._decimation_reentry = True
+                    try:
+                        self._unmanage_line(axes, line, restore=True)
+                    finally:
+                        self._decimation_reentry = False
+        self._cleanup_decimation_axes(axes)
         self._apply_decimation(axes)
+
+    def _managed_lines_for_axes(self, axes_list: list[Any]) -> list[Any]:
+        lines: list[Any] = []
+        seen: set[int] = set()
+        for ax in axes_list:
+            for line in list(getattr(ax, "_pmsp_decimated_lines", None) or []):
+                ident = id(line)
+                if ident in seen:
+                    continue
+                seen.add(ident)
+                lines.append(line)
+        return lines
+
+    def _unmanage_line(self, axes: Any, line: Any, *, restore: bool) -> None:
+        full_xy = getattr(line, "_pmsp_full_xy", None)
+        set_data = getattr(line, "set_data", None)
+        if restore and full_xy is not None and callable(set_data):
+            try:
+                set_data(full_xy[0], full_xy[1])
+            except Exception:
+                pass
+        for name in ("_pmsp_full_xy", "_pmsp_full_x_sorted", "_pmsp_decimated_token", "_pmsp_finite_cache"):
+            try:
+                delattr(line, name)
+            except (AttributeError, TypeError):
+                pass
+        managed = getattr(axes, "_pmsp_decimated_lines", None)
+        if managed is not None:
+            try:
+                managed.discard(line)
+            except Exception:
+                pass
+
+    def _cleanup_decimation_axes(self, axes: Any) -> None:
+        managed = getattr(axes, "_pmsp_decimated_lines", None)
+        if managed:
+            return
+        callbacks = getattr(axes, "callbacks", None)
+        disconnect = getattr(callbacks, "disconnect", None)
+        canvas = getattr(getattr(axes, "figure", None), "canvas", None)
+        mpl_disconnect = getattr(canvas, "mpl_disconnect", None)
+        for name in ("_pmsp_decimation_cid", "_pmsp_draw_cid"):
+            cid = getattr(axes, name, None)
+            if cid is not None and name == "_pmsp_draw_cid" and callable(mpl_disconnect):
+                try:
+                    mpl_disconnect(cid)
+                except Exception:
+                    pass
+            elif cid is not None and callable(disconnect):
+                try:
+                    disconnect(cid)
+                except Exception:
+                    pass
+            try:
+                delattr(axes, name)
+            except (AttributeError, TypeError):
+                pass
+        try:
+            delattr(axes, "_pmsp_decimated_lines")
+        except (AttributeError, TypeError):
+            pass
+
+    def _record_decimated_token(self, line: Any) -> None:
+        try:
+            line._pmsp_decimated_token = line.get_xdata()
+        except Exception:
+            pass
+
+    def _resolve_axes(self, axes: Any = None, maybe_axes: Any = None) -> Any:
+        if maybe_axes is not None or isinstance(axes, tuple):
+            return super()._resolve_axes(axes, maybe_axes)
+        return self._resolve_register_axes(axes)
+
+    def _resolve_register_axes(self, axes: Any = None) -> list[Any]:
+        if axes is None:
+            if self.active_axes is not None:
+                candidates = [self.active_axes]
+            else:
+                figure = getattr(getattr(self, "axes", None), "figure", None)
+                candidates = list(getattr(figure, "axes", []) or [])
+        elif self._looks_like_axes_iterable(axes):
+            try:
+                candidates = list(axes)
+            except TypeError:
+                candidates = [axes]
+        else:
+            candidates = [axes]
+        return [ax for ax in candidates if self._is_registerable_axes(ax)]
+
+    def _looks_like_axes_iterable(self, value: Any) -> bool:
+        if isinstance(value, (str, bytes)):
+            return False
+        if self.is_axes_handle(value):
+            return False
+        try:
+            iter(value)
+        except TypeError:
+            return False
+        return True
+
+    def _is_registerable_axes(self, axes: Any) -> bool:
+        if axes is None:
+            return False
+        if getattr(axes, "_colorbar", None) is not None or getattr(axes, "_colorbar_info", None):
+            return False
+        figure = getattr(axes, "figure", None)
+        for other in list(getattr(figure, "axes", []) or []):
+            colorbar = getattr(other, "_colorbar", None)
+            if getattr(colorbar, "ax", None) is axes:
+                return False
+        return True
 
     def _apply_decimation(self, axes: Any) -> None:
         if self._decimation_reentry or not self.line_decimation_enabled:
@@ -781,6 +1005,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                     n_points = min(full_x.size, full_y.size)
                     if n_points == 0:
                         set_data(full_x[:0], full_y[:0])
+                        self._record_decimated_token(line)
                         continue
                     if getattr(line, "_pmsp_full_x_sorted", False):
                         i0 = int(np.searchsorted(full_x, lo, "left"))
@@ -793,11 +1018,14 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                     count = i1 - i0
                     if count <= 0:
                         set_data(full_x[:0], full_y[:0])
+                        self._record_decimated_token(line)
                     elif count <= 4 * n_buckets:
                         set_data(full_x[i0:i1], full_y[i0:i1])
+                        self._record_decimated_token(line)
                     else:
                         sel = self._decimated_indices(full_y, i0, i1, n_buckets)
                         set_data(full_x[sel], full_y[sel])
+                        self._record_decimated_token(line)
             finally:
                 self._decimation_reentry = False
         except Exception:
@@ -1814,8 +2042,14 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             self._remove_mode_label()
             return
         self._disable_default_3d_mouse_rotation(axes)
-        self.apply_active_axes_highlight(axes)
+        if self.active_axes_highlight_enabled:
+            self.apply_active_axes_highlight(axes)
         self.update_mode_label(axes)
+        if self.auto_register_existing:
+            try:
+                self.register_existing_artists(axes)
+            except Exception:
+                pass
 
     def _disable_default_3d_mouse_rotation(self, axes: Any) -> None:
         if not self.is_3d_axes(axes):
@@ -1968,6 +2202,15 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
         self.mode_label_enabled = bool(enabled)
         self.update_mode_label()
+
+    def set_active_axes_highlight_enabled(self, enabled: bool) -> None:
+        """Enable or disable the blue active-axes spine highlight (off by default)."""
+
+        self.active_axes_highlight_enabled = bool(enabled)
+        if not self.active_axes_highlight_enabled:
+            self.restore_active_axes_highlight()
+        elif self.active_axes is not None:
+            self.apply_active_axes_highlight(self.active_axes)
 
     def update_mode_label(self, axes: Any | None = None) -> None:
         self._remove_mode_label()

@@ -190,6 +190,186 @@ _MODE_BY_METHOD = {
     "matlab_select": "select",
     "matlab_brush": "brush",
 }
+_COLOR_ICON_BY_KIND = {
+    "color_blue": "#0072BD",
+    "color_orange": "#D95319",
+    "color_yellow": "#EDB120",
+    "color_purple": "#7E2F8E",
+    "color_green": "#77AC30",
+    "color_cyan": "#4DBEEE",
+    "color_red": "#A2142F",
+    "color_black": "#000000",
+}
+_MARKER_ICON_BY_KIND = {
+    "marker_circle": "o",
+    "marker_square": "s",
+    "marker_triangle": "^",
+    "marker_x": "x",
+    "marker_plus": "+",
+    "marker_point": ".",
+}
+_LINE_ICON_BY_KIND = {
+    "line_solid": "-",
+    "line_dashed": "--",
+    "line_dashdot": "-.",
+    "line_dotted": ":",
+}
+
+
+def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
+    """Draw a menu icon into ``ax`` using 0..1 axes-fraction coordinates."""
+
+    ax.set_axis_off()
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    cx = 0.5
+    cy = 0.5
+    left = 0.22
+    right = 0.78
+    top = 0.72
+    bottom = 0.28
+    accent = "#9a9a9a" if disabled else "#0072BD"
+    base = "#9a9a9a" if disabled else "#202020"
+
+    def add_line(xs, ys, *, color=base, width=1.0, style="-"):
+        line = Line2D(xs, ys, color=color, linewidth=width, linestyle=style, transform=ax.transAxes, clip_on=False)
+        ax.add_line(line)
+        return line
+
+    def add_marker(x, y, marker, *, color=base, size=6.0, fill=None):
+        face = "none" if fill == "none" else color if fill is None else fill
+        line = Line2D(
+            [x],
+            [y],
+            color=color,
+            marker=marker,
+            linestyle="None",
+            markersize=size,
+            markeredgecolor=color,
+            markerfacecolor=face,
+            transform=ax.transAxes,
+            clip_on=False,
+        )
+        ax.add_line(line)
+        return line
+
+    def add_patch(x, y, width, height, *, face, edge, line=0.8):
+        patch = Rectangle(
+            (x, y),
+            width,
+            height,
+            transform=ax.transAxes,
+            facecolor=face,
+            edgecolor=edge,
+            linewidth=line,
+            clip_on=False,
+        )
+        ax.add_patch(patch)
+        return patch
+
+    def add_text(x, y, text, *, size=8, color=base):
+        return ax.text(x, y, text, ha="center", va="center", fontsize=size, color=color, transform=ax.transAxes, clip_on=False)
+
+    def draw_x(color=base):
+        add_line([0.28, 0.72], [0.68, 0.32], color=color, width=1.0)
+        add_line([0.28, 0.72], [0.32, 0.68], color=color, width=1.0)
+
+    def draw_box():
+        add_patch(0.24, 0.29, 0.52, 0.42, face="none", edge=base, line=0.8)
+
+    def draw_swatch(color):
+        add_patch(0.19, 0.27, 0.62, 0.46, face=color, edge="#5f5f5f", line=0.35)
+
+    if kind.startswith("color_"):
+        draw_swatch("#c8c8c8" if disabled else _COLOR_ICON_BY_KIND.get(kind, "#0072BD"))
+    elif kind.startswith("marker_"):
+        color = "#9a9a9a" if disabled else "#0072BD"
+        if kind == "marker_none":
+            add_marker(cx, cy, "o", color=color, size=5.8, fill="none")
+            add_line([0.20, 0.80], [0.20, 0.80], color=color, width=1.0)
+        else:
+            marker = _MARKER_ICON_BY_KIND.get(kind, "o")
+            add_marker(cx, cy, marker, color=color, size=5.8, fill=color)
+    elif kind.startswith("line_"):
+        color = "#9a9a9a" if disabled else "#0072BD"
+        if kind == "line_none":
+            draw_x(color)
+        else:
+            add_line([0.16, 0.84], [cy, cy], color=color, width=1.4, style=_LINE_ICON_BY_KIND.get(kind, "-"))
+    elif kind == "none":
+        add_marker(cx, cy, "o", color=base, size=6.2, fill="none")
+        add_line([left, right], [bottom, top], color=base, width=1.0)
+    elif kind in {"pointer", "select"}:
+        add_line([left, right], [top, bottom])
+        add_line([left, 0.48], [top, 0.70])
+        add_line([left, 0.28], [top, 0.49])
+    elif kind == "pan":
+        add_line([left, right], [cy, cy])
+        add_line([cx, cx], [bottom, top])
+        add_line([left, 0.34], [cy, 0.58])
+        add_line([left, 0.34], [cy, 0.42])
+        add_line([right, 0.66], [cy, 0.58])
+        add_line([right, 0.66], [cy, 0.42])
+    elif kind == "zoom":
+        add_marker(0.45, 0.54, "o", size=5.2, fill="none")
+        add_line([0.62, right], [0.42, bottom])
+    elif kind == "rotate":
+        add_marker(cx, cy, "o", size=6.2, fill="none")
+        add_line([0.64, right], [0.62, 0.70])
+        add_line([right, 0.70], [0.70, 0.58])
+    elif kind == "cursor":
+        add_line([left, right], [cy, cy], width=0.9)
+        add_line([cx, cx], [bottom, top], width=0.9)
+    elif kind == "brush":
+        add_patch(0.28, 0.38, 0.36, 0.24, face=accent, edge=accent, line=0.0)
+        add_line([0.60, right], [0.48, bottom], color=accent)
+    elif kind == "marker":
+        add_marker(cx, cy, "o", color=accent, size=5.8, fill=accent)
+    elif kind == "line":
+        add_line([0.16, 0.84], [cy, cy], color=accent, width=1.4)
+    elif kind == "color":
+        draw_swatch(accent)
+    elif kind in {"view", "view2", "view3", "box"}:
+        draw_box()
+    elif kind.startswith("axis"):
+        add_line([left, left], [bottom, top])
+        add_line([left, right], [bottom, bottom])
+    elif kind == "display":
+        draw_box()
+        add_patch(0.38, 0.40, 0.24, 0.20, face=base, edge=base, line=0.0)
+    elif kind == "grid":
+        draw_box()
+        add_line([cx, cx], [bottom, top], width=0.6)
+        add_line([left, right], [cy, cy], width=0.6)
+    elif kind == "legend":
+        for y in (0.39, 0.50, 0.61):
+            add_line([left, right], [y, y], width=0.8)
+    elif kind == "colorbar":
+        draw_swatch("#D95319")
+    elif kind.startswith("link"):
+        add_marker(0.38, cy, "o", size=4.2, fill="none")
+        add_marker(0.62, cy, "o", size=4.2, fill="none")
+        add_line([0.46, 0.54], [cy, cy], width=0.8)
+    elif kind == "selection":
+        draw_box()
+        add_line([0.38, 0.48, 0.68], [cy, 0.38, 0.66], color=accent)
+    elif kind == "visibility":
+        add_marker(cx, cy, "o", size=6.0, fill="none")
+        add_marker(cx, cy, "o", size=2.0)
+    elif kind == "clear_selection":
+        draw_x()
+    elif kind == "delete":
+        draw_x()
+        add_line([left, right], [top, top], width=0.8)
+    elif kind == "home":
+        add_line([left, cx, right], [cy, top, cy])
+        add_line([0.32, 0.32, 0.68, 0.68], [cy, bottom, bottom, cy])
+    elif kind == "back":
+        add_line([right, left, right], [top, cy, bottom], width=1.2)
+    elif kind == "forward":
+        add_line([left, right, left], [top, cy, bottom], width=1.2)
+    elif kind == "hold":
+        add_text(cx, cy, "H", size=8)
 
 
 class MatplotlibContextMenuActions:
@@ -450,6 +630,41 @@ class MatplotlibContextMenu:
     def _open(self, x: float, y: float, axes) -> None:
         self.open(x, y, axes)
 
+    def build_menu_model(self) -> list[dict]:
+        return self._build_model_items(_MATLAB_MENU_ITEMS)
+
+    def _build_model_items(self, items) -> list[dict]:
+        model = []
+        for item in items:
+            if item is None:
+                model.append({"kind": "separator"})
+                continue
+            label, action_or_submenu = item
+            enabled = not self._is_disabled_item(label, action_or_submenu)
+            if isinstance(action_or_submenu, tuple):
+                model.append(
+                    {
+                        "kind": "submenu",
+                        "label": label,
+                        "enabled": enabled,
+                        "icon_kind": _MENU_ICON_BY_LABEL.get(label),
+                        "items": self._build_model_items(action_or_submenu),
+                    }
+                )
+            else:
+                method_name = action_or_submenu
+                model.append(
+                    {
+                        "kind": "action",
+                        "label": label,
+                        "method": method_name,
+                        "enabled": enabled,
+                        "checked": self._is_checked_method(method_name),
+                        "icon_kind": _MENU_ICON_BY_METHOD.get(method_name),
+                    }
+                )
+        return model
+
     def close(self, *, ignore_remove_errors: bool = False) -> None:
         if not self._artists:
             return
@@ -705,14 +920,7 @@ class MatplotlibContextMenu:
             self._add_marker(x, y, "o", color=color, size=5.8, z=z, fill="none")
             self._add_line([x - 0.006, x + 0.006], [y - 0.006, y + 0.006], color=color, width=1.0, z=z)
             return
-        marker = {
-            "marker_circle": "o",
-            "marker_square": "s",
-            "marker_triangle": "^",
-            "marker_x": "x",
-            "marker_plus": "+",
-            "marker_point": ".",
-        }.get(kind, "o")
+        marker = _MARKER_ICON_BY_KIND.get(kind, "o")
         self._add_marker(x, y, marker, color=color, size=5.8, z=z, fill=color)
 
     def _draw_line_icon(self, kind: str, x: float, y: float, width: float, z: int, *, disabled: bool = False) -> None:
@@ -720,25 +928,11 @@ class MatplotlibContextMenu:
         if kind == "line_none":
             self._draw_x_icon(x, y, width, width, z, color=color)
             return
-        style = {
-            "line_solid": "-",
-            "line_dashed": "--",
-            "line_dashdot": "-.",
-            "line_dotted": ":",
-        }.get(kind, "-")
+        style = _LINE_ICON_BY_KIND.get(kind, "-")
         self._add_line([x + width * 0.16, x + width * 0.84], [y, y], color=color, width=1.4, z=z, style=style)
 
     def _draw_color_icon(self, kind: str, x: float, y: float, width: float, height: float, z: int, *, disabled: bool = False) -> None:
-        color = {
-            "color_blue": "#0072BD",
-            "color_orange": "#D95319",
-            "color_yellow": "#EDB120",
-            "color_purple": "#7E2F8E",
-            "color_green": "#77AC30",
-            "color_cyan": "#4DBEEE",
-            "color_red": "#A2142F",
-            "color_black": "#000000",
-        }.get(kind, "#0072BD")
+        color = _COLOR_ICON_BY_KIND.get(kind, "#0072BD")
         if disabled:
             color = "#c8c8c8"
         self._draw_color_swatch(x, y, width, height, color, z)

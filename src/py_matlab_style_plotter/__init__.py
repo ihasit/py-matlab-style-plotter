@@ -105,6 +105,7 @@ from .matplotlib_context_menu import (
     MatplotlibContextMenuActions,
     MatplotlibContextMenuEventBridge,
 )
+from .qt_context_menu import QtContextMenu, QtContextMenuEventBridge
 
 __all__ = [
     "__version__",
@@ -123,4 +124,6 @@ __all__ = [
     "MatplotlibContextMenu",
     "MatplotlibContextMenuActions",
     "MatplotlibContextMenuEventBridge",
+    "QtContextMenu",
+    "QtContextMenuEventBridge",
 ]
