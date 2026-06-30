@@ -158,6 +158,20 @@ class QtContextMenuTest(unittest.TestCase):
                 self.assertGreater(pixmap.width(), 0)
 
     @unittest.skipUnless(_HAS_QT, "Qt binding is not available")
+    def test_qmenu_forces_action_icons_visible(self):
+        from py_matlab_style_plotter import QtContextMenu
+
+        fig, ax = _figure_axes()
+        plotter = MatplotlibAxesPlotter(ax)
+        menu = QtContextMenu(fig, plotter).build_qmenu()
+        self._menus.append(menu)
+
+        icon_actions = [action for action in _walk_actions(menu) if not action.icon().isNull()]
+
+        self.assertTrue(icon_actions)
+        self.assertTrue(all(action.isIconVisibleInMenu() for action in icon_actions))
+
+    @unittest.skipUnless(_HAS_QT, "Qt binding is not available")
     def test_action_dispatch_invokes_plotter(self):
         from py_matlab_style_plotter import QtContextMenu
 

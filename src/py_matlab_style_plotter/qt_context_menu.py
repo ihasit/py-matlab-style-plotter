@@ -138,7 +138,9 @@ class QtContextMenu:
                 submenu.setEnabled(bool(item["enabled"]))
                 icon = self.icons.icon(item.get("icon_kind"), disabled=not bool(item["enabled"]))
                 if icon is not None:
-                    submenu.setIcon(icon)
+                    action = submenu.menuAction()
+                    action.setIcon(icon)
+                    self._set_icon_visible_in_menu(action)
                 self._populate_menu(submenu, item["items"], root=root)
                 continue
             action = menu.addAction(item["label"])
@@ -146,6 +148,7 @@ class QtContextMenu:
             icon = self.icons.icon(item.get("icon_kind"), disabled=not bool(item["enabled"]))
             if icon is not None:
                 action.setIcon(icon)
+                self._set_icon_visible_in_menu(action)
             action.setEnabled(bool(item["enabled"]))
             if item.get("checked", False):
                 action.setCheckable(True)
@@ -154,6 +157,12 @@ class QtContextMenu:
 
     def _make_handler(self, method: str):
         return lambda *_args: getattr(self.actions, method)()
+
+    def _set_icon_visible_in_menu(self, action: Any) -> None:
+        setter = getattr(action, "setIconVisibleInMenu", None)
+        if setter is None:
+            return
+        setter(True)
 
     def _own_qmenu(self, root: Any, submenu: Any) -> None:
         root._pmsp_owned_menus.append(submenu)
