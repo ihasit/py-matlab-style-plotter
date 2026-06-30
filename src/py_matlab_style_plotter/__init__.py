@@ -1,9 +1,33 @@
 """MATLAB-like plotter primitives."""
 
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
+import tomllib
+
+
+def _source_tree_version() -> str | None:
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    if not pyproject.exists():
+        return None
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    return _version_from_pyproject_data(data)
+
+
+def _version_from_pyproject_data(data: dict) -> str | None:
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return None
+    if project.get("name") != "py-matlab-style-plotter":
+        return None
+    value = project.get("version")
+    return str(value) if value else None
+
 
 try:
-    __version__ = version("py-matlab-style-plotter")
+    __version__ = _source_tree_version() or version("py-matlab-style-plotter")
 except PackageNotFoundError:
     __version__ = "0+unknown"
 

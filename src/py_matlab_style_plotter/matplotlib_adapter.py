@@ -117,6 +117,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def __init__(self, axes: Any | None = None) -> None:
         super().__init__(axes)
         self._zoom_box_artist: Any | None = None
+        self._zoom_box_blit: dict[str, Any] | None = None
         self._brush_box_artist: Any | None = None
         self._mode_label_artist: Any | None = None
         self.data_tips: list[DataTip] = []
@@ -136,6 +137,10 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.coordinate_readout_z_tolerance = 0.05
         self.mode_label_enabled = True
         self.tick_length_points_per_unit = 350.0
+        self.line_decimation_enabled = True
+        self.line_decimation_threshold = 20_000
+        self.line_decimation_max_buckets = 4_000
+        self._decimation_reentry = False
         if axes is not None:
             self.on_active_axes_changed(axes)
 
@@ -148,6 +153,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             else:
                 created = axes.plot(item.x, item.y, item.style, **kwargs)
             artists.extend(created if isinstance(created, list) else list(created))
+        self._register_decimation(axes, artists)
         self._draw_idle(axes)
         return artists
 
@@ -640,6 +646,9 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
     def clear_children(self, axes: Any, reset_properties: bool) -> None:
         self.clear_axes_interaction_state(axes)
+        decimated_lines = getattr(axes, "_pmsp_decimated_lines", None)
+        if decimated_lines is not None:
+            decimated_lines.clear()
         if reset_properties:
             highlighted = self.active_axes_style is not None and self.active_axes_style.axes is axes
             if highlighted:
@@ -686,9 +695,163 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
 
     def autoscale_axes(self, axes: Any, tight: bool = False, recompute: bool = True) -> None:
         if recompute:
+            self._restore_decimated_lines(axes)
             axes.relim()
         axes.autoscale_view(tight=tight)
         self._draw_idle(axes)
+
+    def _restore_decimated_lines(self, axes: Any) -> None:
+        managed = getattr(axes, "_pmsp_decimated_lines", None)
+        if not managed:
+            return
+        self._decimation_reentry = True
+        try:
+            for line in list(managed):
+                full_xy = getattr(line, "_pmsp_full_xy", None)
+                set_data = getattr(line, "set_data", None)
+                if full_xy is None or not callable(set_data):
+                    continue
+                try:
+                    set_data(full_xy[0], full_xy[1])
+                except Exception:
+                    continue
+        finally:
+            self._decimation_reentry = False
+
+    def _register_decimation(self, axes: Any, lines: list[Any]) -> None:
+        if not self.line_decimation_enabled:
+            return
+        registered = False
+        for line in lines:
+            if not all(hasattr(line, name) for name in ("get_xdata", "get_ydata", "set_data")):
+                continue
+            try:
+                full_x = np.asarray(line.get_xdata(), dtype=float).ravel()
+                full_y = np.asarray(line.get_ydata(), dtype=float).ravel()
+            except (TypeError, ValueError):
+                continue
+            count = min(full_x.size, full_y.size)
+            if count <= self.line_decimation_threshold:
+                continue
+            full_x = full_x[:count]
+            full_y = full_y[:count]
+            try:
+                line._pmsp_full_xy = (full_x, full_y)
+                line._pmsp_full_x_sorted = bool(full_x.size and np.all(np.diff(full_x) >= 0))
+            except (AttributeError, TypeError):
+                continue
+            managed = getattr(axes, "_pmsp_decimated_lines", None)
+            if managed is None:
+                managed = set()
+                try:
+                    axes._pmsp_decimated_lines = managed
+                except (AttributeError, TypeError):
+                    continue
+            managed.add(line)
+            registered = True
+        if not registered:
+            return
+        callbacks = getattr(axes, "callbacks", None)
+        connect = getattr(callbacks, "connect", None)
+        if callable(connect) and not hasattr(axes, "_pmsp_decimation_cid"):
+            try:
+                axes._pmsp_decimation_cid = connect("xlim_changed", lambda ax: self._apply_decimation(ax))
+            except Exception:
+                pass
+        self._apply_decimation(axes)
+
+    def _apply_decimation(self, axes: Any) -> None:
+        if self._decimation_reentry or not self.line_decimation_enabled:
+            return
+        managed = getattr(axes, "_pmsp_decimated_lines", None)
+        if not managed:
+            return
+        try:
+            width = self._axes_pixel_width(axes)
+            n_buckets = int(max(1, min(self.line_decimation_max_buckets, width)))
+            lo, hi = sorted(float(item) for item in axes.get_xlim())
+            self._decimation_reentry = True
+            try:
+                for line in list(managed):
+                    full_xy = getattr(line, "_pmsp_full_xy", None)
+                    set_data = getattr(line, "set_data", None)
+                    if full_xy is None or not callable(set_data):
+                        continue
+                    full_x, full_y = full_xy
+                    n_points = min(full_x.size, full_y.size)
+                    if n_points == 0:
+                        set_data(full_x[:0], full_y[:0])
+                        continue
+                    if getattr(line, "_pmsp_full_x_sorted", False):
+                        i0 = int(np.searchsorted(full_x, lo, "left"))
+                        i1 = int(np.searchsorted(full_x, hi, "right"))
+                        i0 = max(0, i0 - 1)
+                        i1 = min(n_points, i1 + 1)
+                    else:
+                        i0 = 0
+                        i1 = n_points
+                    count = i1 - i0
+                    if count <= 0:
+                        set_data(full_x[:0], full_y[:0])
+                    elif count <= 4 * n_buckets:
+                        set_data(full_x[i0:i1], full_y[i0:i1])
+                    else:
+                        sel = self._decimated_indices(full_y, i0, i1, n_buckets)
+                        set_data(full_x[sel], full_y[sel])
+            finally:
+                self._decimation_reentry = False
+        except Exception:
+            self._decimation_reentry = False
+
+    def _axes_pixel_width(self, axes: Any) -> float:
+        try:
+            extent = axes.get_window_extent()
+            width = float(extent.width)
+            if width > 0:
+                return width
+        except Exception:
+            pass
+        return float(self.line_decimation_max_buckets)
+
+    def _decimated_indices(self, full_y: np.ndarray, i0: int, i1: int, n_buckets: int) -> np.ndarray:
+        edges = np.linspace(i0, i1, n_buckets + 1).astype(int)
+        edges = np.unique(edges)
+        if edges.size < 2:
+            return np.asarray([i0, i1 - 1], dtype=int)
+        starts = edges[:-1]
+        ends = edges[1:]
+        non_empty = ends > starts
+        starts = starts[non_empty]
+        ends = ends[non_empty]
+        if starts.size == 0:
+            return np.asarray([i0, i1 - 1], dtype=int)
+        offsets = starts - i0
+        y = full_y[i0:i1]
+        positions = np.arange(i0, i1)
+        y_min_source = np.where(np.isfinite(y), y, np.inf)
+        y_max_source = np.where(np.isfinite(y), y, -np.inf)
+        mins = np.minimum.reduceat(y_min_source, offsets)
+        maxs = np.maximum.reduceat(y_max_source, offsets)
+        min_keys = np.repeat(mins, ends - starts)
+        max_keys = np.repeat(maxs, ends - starts)
+        finite_min = np.isfinite(min_keys)
+        finite_max = np.isfinite(max_keys)
+        min_candidates = np.where(finite_min & (y_min_source == min_keys), positions, i1)
+        max_candidates = np.where(finite_max & (y_max_source == max_keys), positions, i1)
+        min_indices = np.minimum.reduceat(min_candidates, offsets)
+        max_indices = np.minimum.reduceat(max_candidates, offsets)
+        first_indices = starts
+        min_indices = np.where(min_indices < i1, min_indices, first_indices)
+        max_indices = np.where(max_indices < i1, max_indices, first_indices)
+        selected = np.concatenate(
+            (
+                np.asarray([i0, i1 - 1], dtype=int),
+                min_indices.astype(int, copy=False),
+                max_indices.astype(int, copy=False),
+            )
+        )
+        selected = selected[(selected >= i0) & (selected < i1)]
+        return np.unique(selected)
 
     def autoscale_clim(self, axes: Any) -> None:
         for artist in [*getattr(axes, "images", []), *getattr(axes, "collections", [])]:
@@ -939,14 +1102,34 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             linestyle="--",
             alpha=0.8,
             zorder=10_000,
+            animated=True,
         )
         self._add_box_artist(axes, self._zoom_box_artist, x, y, x, y)
-        self._draw_idle(axes)
+        self._setup_zoom_box_blit(axes, self._zoom_box_artist)
 
     def update_zoom_box(self, axes: Any, x0: float, y0: float, x1: float, y1: float) -> None:
         if self._zoom_box_artist is None:
             return
         self._set_box_artist_bounds(self._zoom_box_artist, axes, x0, y0, x1, y1)
+        if self._zoom_box_blit is not None:
+            try:
+                blit = self._zoom_box_blit
+                artist = blit["artist"]
+                figure = blit["figure"]
+                canvas = blit["canvas"]
+                if artist is not self._zoom_box_artist:
+                    raise RuntimeError("stale zoom box blit artist")
+                canvas.restore_region(blit["bg"])
+                if getattr(artist, "_py_matlab_style_figure_overlay", False):
+                    figure.draw_artist(artist)
+                else:
+                    draw_axes = self._box_artist_axes(artist) or axes
+                    draw_axes.draw_artist(artist)
+                canvas.blit(figure.bbox)
+                return
+            except Exception:
+                self._zoom_box_blit = None
+                self._set_artist_animated(artist, False)
         self._draw_idle(axes)
 
     def end_zoom_box(self) -> None:
@@ -955,8 +1138,48 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         axes = self._box_artist_axes(self._zoom_box_artist)
         self._zoom_box_artist.remove()
         self._zoom_box_artist = None
+        self._zoom_box_blit = None
         if axes is not None:
             self._draw_idle(axes)
+
+    def _setup_zoom_box_blit(self, axes: Any, artist: Any) -> None:
+        self._zoom_box_blit = None
+        figure = getattr(axes, "figure", None)
+        canvas = getattr(figure, "canvas", None)
+        if figure is None or canvas is None or not hasattr(figure, "bbox"):
+            self._set_artist_animated(artist, False)
+            self._draw_idle(axes)
+            return
+        copy_from_bbox = getattr(canvas, "copy_from_bbox", None)
+        restore_region = getattr(canvas, "restore_region", None)
+        blit = getattr(canvas, "blit", None)
+        draw = getattr(canvas, "draw", None)
+        if not all(callable(item) for item in (copy_from_bbox, restore_region, blit, draw)):
+            self._set_artist_animated(artist, False)
+            self._draw_idle(axes)
+            return
+        try:
+            artist.set_visible(False)
+            draw()
+            bg = copy_from_bbox(figure.bbox)
+            artist.set_visible(True)
+            self._zoom_box_blit = {"canvas": canvas, "bg": bg, "figure": figure, "artist": artist}
+        except Exception:
+            try:
+                artist.set_visible(True)
+            except Exception:
+                pass
+            self._set_artist_animated(artist, False)
+            self._zoom_box_blit = None
+            self._draw_idle(axes)
+
+    def _set_artist_animated(self, artist: Any, animated: bool) -> None:
+        set_animated = getattr(artist, "set_animated", None)
+        if callable(set_animated):
+            try:
+                set_animated(animated)
+            except Exception:
+                pass
 
     def begin_brush_box(self, axes: Any, x: float, y: float) -> None:
         self.end_brush_box()
@@ -1970,8 +2193,12 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         # The cache invalidates automatically when set_xdata/set_ydata replaces the
         # array objects; in-place mutation of the same object is intentionally not
         # detected (matches Matplotlib's set_data redraw contract).
-        x_obj = line.get_xdata()
-        y_obj = line.get_ydata()
+        full_xy = getattr(line, "_pmsp_full_xy", None)
+        if full_xy is not None:
+            x_obj, y_obj = full_xy
+        else:
+            x_obj = line.get_xdata()
+            y_obj = line.get_ydata()
         cache = getattr(line, "_pmsp_finite_cache", None)
         if cache is not None and cache[0] is x_obj and cache[1] is y_obj:
             return cache[2]
