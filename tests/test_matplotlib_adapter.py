@@ -80,6 +80,12 @@ class FakeMappable:
         self.cmap_values.append(value)
 
 
+class FakeAutoscaleTypeErrorMappable(FakeMappable):
+    def autoscale(self):
+        self.autoscale_count += 1
+        raise TypeError("You must first set_array for mappable")
+
+
 class FakeScatter:
     def __init__(self, axes, args, kwargs):
         self.axes = axes
@@ -970,6 +976,25 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
             ],
         )
 
+    def test_scatter3_draws_series_with_size_and_color(self):
+        axes = FakeAxes(is_3d=True)
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.scatter3([1, 2], [10, 20], [3, 4], 32, "#D95319", "DisplayName", "pts3")
+
+        self.assertEqual(len(artists), 1)
+        self.assertEqual(
+            axes.scatter_calls,
+            [
+                (
+                    (1.0, 2.0),
+                    (10.0, 20.0),
+                    (3.0, 4.0),
+                    {"label": "pts3", "s": 32.0, "c": "#D95319"},
+                )
+            ],
+        )
+
     def test_stem_draws_series_through_matplotlib_axes(self):
         axes = FakeAxes()
         plotter = MatplotlibAxesPlotter(axes)
@@ -983,11 +1008,23 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
                 (
                     (1.0, 2.0),
                     (10.0, 20.0),
-                    (),
-                    {"color": "r", "linestyle": "--", "marker": "o", "label": "stem"},
+                    ("r--o",),
+                    {"label": "stem"},
                 )
             ],
         )
+
+    def test_stem_draws_through_real_matplotlib_axes(self):
+        import matplotlib.pyplot as plt
+
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+
+        artists = plotter.stem([1, 2], [10, 20], "r--o", "DisplayName", "stem")
+
+        self.assertGreaterEqual(len(artists), 3)
+        self.assertEqual(axes.get_legend_handles_labels()[1], ["stem"])
+        plt.close(fig)
 
     def test_bar_draws_series_through_matplotlib_axes(self):
         axes = FakeAxes()
@@ -2607,6 +2644,20 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(collection.autoscale_count, 1)
         self.assertEqual(plotter.clim_mode, "auto")
 
+    def test_clim_auto_skips_mappables_without_array_data(self):
+        axes = FakeAxes()
+        image = FakeMappable()
+        collection = FakeAutoscaleTypeErrorMappable()
+        axes.images = [image]
+        axes.collections = [collection]
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.clim("auto")
+
+        self.assertEqual(image.autoscale_count, 1)
+        self.assertEqual(collection.autoscale_count, 1)
+        self.assertEqual(plotter.clim_mode, "auto")
+
     def test_caxis_maps_to_matplotlib_color_limit_behavior(self):
         axes = FakeAxes()
         image = FakeMappable()
@@ -2651,6 +2702,24 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(axes1.get_ylim(), (3.0, 9.0))
         self.assertEqual(axes2.get_xlim(), (2.0, 6.0))
         self.assertEqual(axes2.get_ylim(), (3.0, 9.0))
+
+    def test_box_zoom_preserves_fixed_aspect_axes_display_size(self):
+        fig, axes = plt.subplots(figsize=(3, 3))
+        try:
+            axes.imshow(np.arange(100).reshape(10, 10))
+            fig.canvas.draw()
+            before = tuple(float(value) for value in axes.get_position().bounds)
+            plotter = MatplotlibAxesPlotter(axes)
+
+            plotter.on_box_zoom(axes, (2.0, 2.0), (4.0, 8.0))
+            fig.canvas.draw()
+
+            after = tuple(float(value) for value in axes.get_position().bounds)
+            self.assertEqual(after, before)
+            self.assertEqual(tuple(float(value) for value in axes.get_xlim()), (0.0, 6.0))
+            self.assertEqual(tuple(float(value) for value in axes.get_ylim()), (2.0, 8.0))
+        finally:
+            plt.close(fig)
 
     def test_coordinate_readout_formats_and_stores_pointer_position(self):
         axes = FakeAxes()

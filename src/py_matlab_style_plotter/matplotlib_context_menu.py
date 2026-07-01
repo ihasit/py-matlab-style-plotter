@@ -687,15 +687,15 @@ class MatplotlibContextMenu:
 
     def _draw_menu(self, items, x: float, y: float, *, level: int, parent_patch=None) -> None:
         entries = list(items)
-        row_height = 0.034
-        separator_height = 0.009
-        check_width = 0.014
-        padding_x = 0.010
-        icon_width = 0.020
-        icon_x = padding_x + check_width + 0.002
-        text_x = icon_x + icon_width + 0.006
-        arrow_padding = 0.010
-        padding_y = 0.006
+        row_height = 0.027
+        separator_height = 0.006
+        check_width = 0.011
+        padding_x = 0.007
+        icon_width = 0.016
+        icon_x = padding_x + check_width + 0.001
+        text_x = icon_x + icon_width + 0.004
+        arrow_padding = 0.007
+        padding_y = 0.004
         menu_width = self._menu_width(entries)
         menu_height = padding_y * 2 + sum(separator_height if item is None else row_height for item in entries)
         x = min(max(x, 0.01), 0.99 - menu_width)
@@ -744,7 +744,7 @@ class MatplotlibContextMenu:
                 item_y + row_height / 2,
                 label,
                 ha="left",
-                size=8,
+                size=7.2,
                 color="#9a9a9a" if disabled else "#1f1f1f",
                 z=20_003 + level * 100,
             )
@@ -761,7 +761,7 @@ class MatplotlibContextMenu:
                     item_y + row_height / 2,
                     ">",
                     ha="right",
-                    size=8,
+                    size=7.2,
                     color="#b0b0b0" if disabled else "#404040",
                     z=20_003 + level * 100,
                 )
@@ -784,7 +784,7 @@ class MatplotlibContextMenu:
             current_y -= row_height
 
     def _draw_menu_sample(self, method_name: str, x: float, y: float, width: float, height: float, level: int, *, disabled: bool = False):
-        sample_x = x + width - 0.032
+        sample_x = x + width - 0.024
         sample_y = y + height / 2
         color_value = "#9a9a9a" if disabled else "#202020"
         if method_name.startswith("matlab_color_"):
@@ -1004,10 +1004,10 @@ class MatplotlibContextMenu:
         longest = max((len(label) for label in labels), default=8)
         has_submenu = any(item is not None and isinstance(item[1], tuple) for item in entries)
         has_sample = any(item is not None and not isinstance(item[1], tuple) and str(item[1]).startswith(("matlab_marker_", "matlab_line_", "matlab_color_")) for item in entries)
-        right_space = 0.026 if has_submenu else 0.0
+        right_space = 0.020 if has_submenu else 0.0
         if has_sample:
-            right_space = max(right_space, 0.040)
-        return max(0.112, min(0.210, 0.060 + longest * 0.007 + right_space))
+            right_space = max(right_space, 0.032)
+        return max(0.092, min(0.172, 0.048 + longest * 0.0058 + right_space))
 
     def _add_patch(self, x, y, width, height, *, face, edge, line, z):
         patch = Rectangle(
@@ -1093,6 +1093,7 @@ class MatplotlibContextMenu:
         if event.x is None or event.y is None:
             return False
         figure_xy = self.fig.transFigure.inverted().transform((event.x, event.y))
+        is_axes_right_click = event.inaxes is not None and self._is_right_click(getattr(event, "button", None))
         if self._items:
             for item in reversed(self._items):
                 patch = item["patch"]
@@ -1121,9 +1122,12 @@ class MatplotlibContextMenu:
                     self.close()
                     getattr(self.actions, item["method"])()
                     return True
+            if is_axes_right_click:
+                self._open(float(figure_xy[0]), float(figure_xy[1]), event.inaxes)
+                return True
             self.close()
             return True
-        if event.inaxes is None or not self._is_right_click(getattr(event, "button", None)):
+        if not is_axes_right_click:
             return False
         self._open(float(figure_xy[0]), float(figure_xy[1]), event.inaxes)
         return True

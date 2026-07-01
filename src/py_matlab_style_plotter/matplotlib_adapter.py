@@ -219,6 +219,8 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         for item in series:
             kwargs = {**dict(item.line_spec), **dict(item.properties)}
             style = item.style if item.style is not None and not item.line_spec else None
+            style = style if style is not None else self._stem_linefmt_from_kwargs(kwargs)
+            kwargs = {key: value for key, value in kwargs.items() if key not in {"color", "linestyle", "marker"}}
             if style is None:
                 created = axes.stem(item.x, item.y, **kwargs)
             else:
@@ -229,6 +231,21 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 artists.append(created)
         self._draw_idle(axes)
         return artists
+
+    def _stem_linefmt_from_kwargs(self, kwargs: dict[str, Any]) -> str | None:
+        color = kwargs.get("color")
+        linestyle = kwargs.get("linestyle")
+        marker = kwargs.get("marker")
+        if color is None and linestyle is None and marker is None:
+            return None
+        parts = []
+        if color is not None and isinstance(color, str):
+            parts.append(color)
+        if linestyle not in (None, "None", "none", ""):
+            parts.append(str(linestyle))
+        if marker not in (None, "None", "none", ""):
+            parts.append(str(marker))
+        return "".join(parts) if parts else None
 
     def draw_stem3_series(self, axes: Any, series: list[Any]) -> list[Any]:
         import numpy as np
@@ -696,6 +713,78 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             axes.set_clim(*limits.clim)
         self._draw_idle(axes)
 
+    def adjust_box_zoom_limits(
+        self,
+        axes: Any,
+        current: AxesLimits,
+        requested: AxesLimits,
+        motion: str,
+    ) -> AxesLimits:
+        if motion != "both" or self.is_3d_axes(axes):
+            return requested
+        aspect = self._fixed_data_aspect(axes)
+        if aspect is None:
+            return requested
+        box_ratio = self._axes_display_box_ratio(axes)
+        if box_ratio is None:
+            return requested
+        x0, x1 = requested.xlim
+        y0, y1 = requested.ylim
+        x_span = abs(x1 - x0)
+        y_span = abs(y1 - y0)
+        if x_span <= 0.0 or y_span <= 0.0:
+            return requested
+        target_x_over_y = box_ratio / aspect
+        if not isfinite(target_x_over_y) or target_x_over_y <= 0.0:
+            return requested
+        current_x_over_y = x_span / y_span
+        if abs(current_x_over_y - target_x_over_y) <= 1.0e-12 * max(current_x_over_y, target_x_over_y):
+            return requested
+        x_center = (x0 + x1) / 2.0
+        y_center = (y0 + y1) / 2.0
+        if current_x_over_y > target_x_over_y:
+            y_span = x_span / target_x_over_y
+        else:
+            x_span = y_span * target_x_over_y
+        return AxesLimits(
+            (x_center - x_span / 2.0, x_center + x_span / 2.0),
+            (y_center - y_span / 2.0, y_center + y_span / 2.0),
+            requested.zlim,
+            requested.clim,
+        )
+
+    def _fixed_data_aspect(self, axes: Any) -> float | None:
+        get_aspect = getattr(axes, "get_aspect", None)
+        if get_aspect is None:
+            return None
+        aspect = get_aspect()
+        if aspect == "auto":
+            return None
+        try:
+            value = float(aspect)
+        except (TypeError, ValueError):
+            return None
+        return value if isfinite(value) and value > 0.0 else None
+
+    def _axes_display_box_ratio(self, axes: Any) -> float | None:
+        bbox = getattr(axes, "bbox", None)
+        width = getattr(bbox, "width", None)
+        height = getattr(bbox, "height", None)
+        if width is None or height is None:
+            get_position = getattr(axes, "get_position", None)
+            figure = getattr(axes, "figure", None)
+            fig_bbox = getattr(figure, "bbox", None)
+            if get_position is None or fig_bbox is None:
+                return None
+            position = get_position(original=True)
+            width = position.width * fig_bbox.width
+            height = position.height * fig_bbox.height
+        try:
+            ratio = float(width) / float(height)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+        return ratio if isfinite(ratio) and ratio > 0.0 else None
+
     def autoscale_axes(self, axes: Any, tight: bool = False, recompute: bool = True) -> None:
         if recompute:
             self._restore_decimated_lines(axes)
@@ -1085,7 +1174,10 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         for artist in [*getattr(axes, "images", []), *getattr(axes, "collections", [])]:
             autoscale = getattr(artist, "autoscale", None)
             if autoscale is not None:
-                autoscale()
+                try:
+                    autoscale()
+                except TypeError:
+                    pass
         self._draw_idle(axes)
 
     def set_aspect(self, axes: Any, aspect: AspectMode) -> None:

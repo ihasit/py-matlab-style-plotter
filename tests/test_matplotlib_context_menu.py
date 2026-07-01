@@ -104,6 +104,27 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         menu.close()
         plt.close(fig)
 
+    def test_right_click_another_axes_reopens_menu_with_one_click(self):
+        fig, (axes_a, axes_b) = plt.subplots(1, 2)
+        plotter = MatplotlibAxesPlotter(axes_a)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        x_a, y_a = axes_a.transAxes.transform((0.5, 0.5))
+        x_b, y_b = axes_b.transAxes.transform((0.5, 0.5))
+
+        self.assertTrue(menu._on_press(FakeMouseEvent(x_a, y_a, axes=axes_a, button=3)))
+        first_patch = menu._items[0]["patch"]
+        self.assertIs(plotter.active_axes, axes_a)
+
+        self.assertTrue(menu._on_press(FakeMouseEvent(x_b, y_b, axes=axes_b, button=3)))
+
+        self.assertGreater(len(menu._items), 0)
+        self.assertIs(plotter.active_axes, axes_b)
+        self.assertNotIn(first_patch, [item["patch"] for item in menu._items])
+
+        menu.close()
+        plt.close(fig)
+
     def test_menu_marks_current_mode_with_check(self):
         fig, axes = plt.subplots()
         plotter = MatplotlibAxesPlotter(axes)

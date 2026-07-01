@@ -1847,8 +1847,8 @@ class MatlabLikeAxesBase:
         x = self._numeric_vector(data_args[0], "scatter3 x")
         y = self._numeric_vector(data_args[1], "scatter3 y")
         z = self._numeric_vector(data_args[2], "scatter3 z")
-        size = self._normalize_scatter_size(data_args[3]) if len(data_args) > 3 else None
-        color = self._normalize_scatter_color(data_args[4]) if len(data_args) > 4 else None
+        size = self._normalize_scatter_size(data_args[3], len(x)) if len(data_args) > 3 else None
+        color = self._normalize_scatter_color(data_args[4], len(x)) if len(data_args) > 4 else None
         return [Scatter3Series(x, y, z, size, color, properties)]
 
     def normalize_stem_args(self, args: Sequence[Any], kwargs: dict[str, Any] | None = None) -> list[StemSeries]:
@@ -5169,6 +5169,7 @@ class MatlabLikeAxesBase:
             return
         limits = AxesLimits((start[0], end[0]), (start[1], end[1]), current.zlim, current.clim).normalized()
         limits = self._apply_motion_to_limits(current, limits, self.zoom_motion)
+        limits = self.adjust_box_zoom_limits(axes, current, limits, self.zoom_motion)
         self._set_user_limits(axes, limits)
         self.push_current_view(axes)
 
@@ -6013,6 +6014,17 @@ class MatlabLikeAxesBase:
         """Set current axes limits for the concrete backend."""
 
         raise NotImplementedError
+
+    def adjust_box_zoom_limits(
+        self,
+        axes: Any,
+        current: AxesLimits,
+        requested: AxesLimits,
+        motion: ToolMotion,
+    ) -> AxesLimits:
+        """Let backends preserve layout constraints while applying a box zoom."""
+
+        return requested
 
     def batch_draw_idle(self) -> Any:
         """Return a context manager that coalesces backend redraw requests."""
