@@ -1541,7 +1541,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
     def create_data_tip(self, axes: Any, x: float, y: float, modifiers: frozenset[str] = frozenset()) -> None:
         if not self._is_finite_pair(x, y):
             return
-        nearest = self.find_nearest_line_point(axes, x, y)
+        nearest = self.find_nearest_data_point(axes, x, y)
         if nearest is None:
             return
         line, index, point_x, point_y, point_z = nearest
@@ -2137,6 +2137,34 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         _, line, index, point_x, point_y, point_z = best
         return line, index, point_x, point_y, point_z
 
+    def find_nearest_data_point(self, axes: Any, x: float, y: float) -> tuple[Any, int, float, float, float | None] | None:
+        best: tuple[float, Any, int, float, float, float | None] | None = None
+        line_point = self.find_nearest_line_point(axes, x, y)
+        if line_point is not None:
+            line, index, point_x, point_y, point_z = line_point
+            best = (self._normalized_point_distance(axes, point_x, point_y, x, y) ** 2, line, index, point_x, point_y, point_z)
+        x_span, y_span = self._axis_spans(axes)
+        for collection in getattr(axes, "collections", []):
+            if not self._collection_is_pickable(collection):
+                continue
+            points = self._finite_collection_xyz_arrays(collection)
+            if points is None:
+                continue
+            xdata, ydata, zdata, indices = points
+            distances = ((xdata - x) / x_span) ** 2 + ((ydata - y) / y_span) ** 2
+            nearest_position = int(np.argmin(distances))
+            distance = float(distances[nearest_position])
+            if best is None or distance < best[0]:
+                index = int(indices[nearest_position])
+                px = float(xdata[nearest_position])
+                py = float(ydata[nearest_position])
+                pz = None if zdata is None else float(zdata[nearest_position])
+                best = (distance, collection, index, px, py, pz)
+        if best is None:
+            return None
+        _distance, artist, index, point_x, point_y, point_z = best
+        return artist, index, point_x, point_y, point_z
+
     def find_nearest_data_tip(self, axes: Any, x: float, y: float) -> tuple[DataTip, float, float] | None:
         best: tuple[float, DataTip, float, float] | None = None
         for tip in self.data_tips:
@@ -2204,7 +2232,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return None
         if not self.is_3d_axes(axes):
             return None
-        nearest = self.find_nearest_line_point(axes, x, y)
+        nearest = self.find_nearest_data_point(axes, x, y)
         if nearest is None:
             return None
         _line, _index, point_x, point_y, point_z = nearest
@@ -2522,6 +2550,97 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         visible = getattr(line, "get_visible", lambda: True)()
         label = getattr(line, "get_label", lambda: "")()
         return bool(visible) and not str(label).startswith("_")
+
+    def _collection_is_pickable(self, collection: Any) -> bool:
+        visible = getattr(collection, "get_visible", lambda: True)()
+        label = getattr(collection, "get_label", lambda: "")()
+        return bool(visible) and not str(label).startswith("_")
+
+    def _finite_collection_xyz_arrays(
+        self, collection: Any
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray] | None:
+        offsets = self._collection_offsets(collection)
+        if offsets is None:
+            return self._finite_collection_xyz_arrays_fallback(collection)
+        try:
+            array = np.asarray(offsets, dtype=float)
+        except (TypeError, ValueError):
+            return self._finite_collection_xyz_arrays_fallback(collection)
+        if array.ndim != 2 or array.shape[0] == 0 or array.shape[1] < 2:
+            return None
+        xdata = array[:, 0]
+        ydata = array[:, 1]
+        zdata = array[:, 2] if array.shape[1] >= 3 else self._collection_z_array(collection, array.shape[0])
+        finite = np.isfinite(xdata) & np.isfinite(ydata)
+        if zdata is not None:
+            finite &= np.isfinite(zdata)
+        if not np.any(finite):
+            return None
+        indices = np.flatnonzero(finite)
+        if finite.all():
+            return xdata, ydata, zdata, np.arange(array.shape[0])
+        return xdata[finite], ydata[finite], None if zdata is None else zdata[finite], indices
+
+    def _finite_collection_xyz_arrays_fallback(
+        self, collection: Any
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray] | None:
+        xs = getattr(collection, "x", None)
+        ys = getattr(collection, "y", None)
+        if xs is None or ys is None:
+            return None
+        zs = getattr(collection, "z", None)
+        x_values = []
+        y_values = []
+        z_values = []
+        indices = []
+        for index, (point_x, point_y) in enumerate(zip(xs, ys)):
+            try:
+                px = float(point_x)
+                py = float(point_y)
+            except (TypeError, ValueError):
+                continue
+            pz = None
+            if zs is not None:
+                try:
+                    pz = float(zs[index])
+                except (IndexError, TypeError, ValueError):
+                    continue
+            if not (isfinite(px) and isfinite(py) and (pz is None or isfinite(pz))):
+                continue
+            x_values.append(px)
+            y_values.append(py)
+            if zs is not None:
+                z_values.append(float(pz))
+            indices.append(index)
+        if not indices:
+            return None
+        return (
+            np.asarray(x_values, dtype=float),
+            np.asarray(y_values, dtype=float),
+            np.asarray(z_values, dtype=float) if zs is not None else None,
+            np.asarray(indices, dtype=int),
+        )
+
+    def _collection_offsets(self, collection: Any) -> Any | None:
+        get_offsets = getattr(collection, "get_offsets", None)
+        if callable(get_offsets):
+            return get_offsets()
+        offsets = getattr(collection, "_offsets3d", None)
+        if offsets is not None and len(offsets) >= 2:
+            return tuple(zip(*offsets[:3])) if len(offsets) >= 3 else tuple(zip(offsets[0], offsets[1]))
+        return None
+
+    def _collection_z_array(self, collection: Any, count: int) -> np.ndarray | None:
+        offsets = getattr(collection, "_offsets3d", None)
+        if offsets is None or len(offsets) < 3:
+            return None
+        try:
+            zdata = np.asarray(offsets[2], dtype=float).ravel()
+        except (TypeError, ValueError):
+            return None
+        if zdata.size < count:
+            return None
+        return zdata[:count]
 
     def _line_zdata(self, line: Any) -> list[Any] | None:
         if hasattr(line, "get_zdata"):

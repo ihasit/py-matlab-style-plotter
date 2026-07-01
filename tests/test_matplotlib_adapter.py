@@ -85,6 +85,7 @@ class FakeScatter:
         self.axes = axes
         self.args = args
         self.kwargs = kwargs
+        self._label = str(kwargs.get("label", kwargs.get("DisplayName", "series")))
         self.removed = False
         self.visible = True
 
@@ -98,6 +99,9 @@ class FakeScatter:
 
     def set_visible(self, value):
         self.visible = value
+
+    def get_label(self):
+        return self._label
 
 
 class FakeGridLine:
@@ -1334,6 +1338,32 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         _line, index, x, y, _z = nearest
         self.assertEqual(index, 2)
         self.assertEqual((x, y), (4.0, 4.0))
+
+    def test_create_data_tip_marks_scatter_point(self):
+        axes = FakeAxes()
+        collection = axes.scatter([1.0, 2.0, 3.0], [1.0, 4.0, 9.0], label="dots")
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.create_data_tip(axes, 2.1, 4.2)
+
+        self.assertEqual(len(plotter.data_tips), 1)
+        tip = plotter.data_tips[0]
+        self.assertIs(tip.line, collection)
+        self.assertEqual(tip.index, 1)
+        self.assertEqual((tip.x, tip.y, tip.z), (2.0, 4.0, None))
+        self.assertEqual(tip.label, "Series: dots\nX: 2\nY: 4\nIndex: 2")
+
+    def test_create_data_tip_marks_3d_scatter_point(self):
+        axes = FakeAxes(is_3d=True)
+        collection = axes.scatter([1.0, 2.0, 3.0], [1.0, 4.0, 9.0], [0.5, 1.5, 2.5], label="space dots")
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.create_data_tip(axes, 2.1, 4.2)
+
+        tip = plotter.data_tips[0]
+        self.assertIs(tip.line, collection)
+        self.assertEqual((tip.x, tip.y, tip.z), (2.0, 4.0, 1.5))
+        self.assertEqual(tip.label, "Series: space dots\nX: 2\nY: 4\nZ: 1.5\nIndex: 2")
 
     def test_create_data_tip_adds_annotation_and_stores_tip(self):
         axes = FakeAxes()

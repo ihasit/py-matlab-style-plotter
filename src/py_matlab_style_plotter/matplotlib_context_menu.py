@@ -228,10 +228,12 @@ def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
     right = 0.78
     top = 0.72
     bottom = 0.28
-    accent = "#9a9a9a" if disabled else "#0072BD"
-    base = "#9a9a9a" if disabled else "#202020"
+    accent = "#8f8f8f" if disabled else "#0072BD"
+    base = "#8f8f8f" if disabled else "#111111"
 
-    def add_line(xs, ys, *, color=base, width=1.0, style="-"):
+    def add_line(xs, ys, *, color=base, width=None, style="-"):
+        if width is None:
+            width = 1.25 if disabled else 1.65
         line = Line2D(xs, ys, color=color, linewidth=width, linestyle=style, transform=ax.transAxes, clip_on=False)
         ax.add_line(line)
         return line
@@ -247,13 +249,16 @@ def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
             markersize=size,
             markeredgecolor=color,
             markerfacecolor=face,
+            markeredgewidth=1.35 if disabled else 1.75,
             transform=ax.transAxes,
             clip_on=False,
         )
         ax.add_line(line)
         return line
 
-    def add_patch(x, y, width, height, *, face, edge, line=0.8):
+    def add_patch(x, y, width, height, *, face, edge, line=None):
+        if line is None:
+            line = 1.0 if disabled else 1.25
         patch = Rectangle(
             (x, y),
             width,
@@ -271,11 +276,11 @@ def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
         return ax.text(x, y, text, ha="center", va="center", fontsize=size, color=color, transform=ax.transAxes, clip_on=False)
 
     def draw_x(color=base):
-        add_line([0.28, 0.72], [0.68, 0.32], color=color, width=1.0)
-        add_line([0.28, 0.72], [0.32, 0.68], color=color, width=1.0)
+        add_line([0.28, 0.72], [0.68, 0.32], color=color)
+        add_line([0.28, 0.72], [0.32, 0.68], color=color)
 
     def draw_box():
-        add_patch(0.24, 0.29, 0.52, 0.42, face="none", edge=base, line=0.8)
+        add_patch(0.24, 0.29, 0.52, 0.42, face="none", edge=base)
 
     def draw_swatch(color):
         add_patch(0.19, 0.27, 0.62, 0.46, face=color, edge="#5f5f5f", line=0.35)
@@ -283,19 +288,19 @@ def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
     if kind.startswith("color_"):
         draw_swatch("#c8c8c8" if disabled else _COLOR_ICON_BY_KIND.get(kind, "#0072BD"))
     elif kind.startswith("marker_"):
-        color = "#9a9a9a" if disabled else "#0072BD"
+        color = accent
         if kind == "marker_none":
             add_marker(cx, cy, "o", color=color, size=5.8, fill="none")
-            add_line([0.20, 0.80], [0.20, 0.80], color=color, width=1.0)
+            add_line([0.20, 0.80], [0.20, 0.80], color=color)
         else:
             marker = _MARKER_ICON_BY_KIND.get(kind, "o")
             add_marker(cx, cy, marker, color=color, size=5.8, fill=color)
     elif kind.startswith("line_"):
-        color = "#9a9a9a" if disabled else "#0072BD"
+        color = accent
         if kind == "line_none":
             draw_x(color)
         else:
-            add_line([0.16, 0.84], [cy, cy], color=color, width=1.4, style=_LINE_ICON_BY_KIND.get(kind, "-"))
+            add_line([0.16, 0.84], [cy, cy], color=color, width=1.55 if disabled else 1.9, style=_LINE_ICON_BY_KIND.get(kind, "-"))
     elif kind == "none":
         add_marker(cx, cy, "o", color=base, size=6.2, fill="none")
         add_line([left, right], [bottom, top], color=base, width=1.0)
@@ -326,7 +331,7 @@ def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
     elif kind == "marker":
         add_marker(cx, cy, "o", color=accent, size=5.8, fill=accent)
     elif kind == "line":
-        add_line([0.16, 0.84], [cy, cy], color=accent, width=1.4)
+        add_line([0.16, 0.84], [cy, cy], color=accent, width=1.55 if disabled else 1.9)
     elif kind == "color":
         draw_swatch(accent)
     elif kind in {"view", "view2", "view3", "box"}:

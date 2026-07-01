@@ -66,6 +66,22 @@ def _find_action(menu, text):
     raise LookupError(text)
 
 
+def _pixmap_darkness(pixmap):
+    image = pixmap.toImage().convertToFormat(pixmap.toImage().Format.Format_RGBA8888)
+    total = 0.0
+    samples = 0
+    for y in range(image.height()):
+        for x in range(image.width()):
+            color = image.pixelColor(x, y)
+            alpha = color.alphaF()
+            if alpha <= 0.0:
+                continue
+            luminance = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
+            total += (1.0 - luminance) * alpha
+            samples += 1
+    return 0.0 if samples == 0 else total / samples
+
+
 class QtContextMenuTest(unittest.TestCase):
     def setUp(self):
         self._menus = []
@@ -156,6 +172,16 @@ class QtContextMenuTest(unittest.TestCase):
                 pixmap = icon.pixmap(16, 16)
                 self.assertFalse(icon.isNull())
                 self.assertGreater(pixmap.width(), 0)
+
+    @unittest.skipUnless(_HAS_QT, "Qt binding is not available")
+    def test_enabled_icons_are_stronger_than_disabled_icons(self):
+        from py_matlab_style_plotter.qt_context_menu import QtMenuIconFactory
+
+        factory = QtMenuIconFactory()
+        enabled = factory.icon("cursor", disabled=False).pixmap(16, 16)
+        disabled = factory.icon("cursor", disabled=True).pixmap(16, 16)
+
+        self.assertGreater(_pixmap_darkness(enabled), _pixmap_darkness(disabled))
 
     @unittest.skipUnless(_HAS_QT, "Qt binding is not available")
     def test_qmenu_forces_action_icons_visible(self):

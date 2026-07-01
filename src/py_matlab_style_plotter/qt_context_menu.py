@@ -29,32 +29,42 @@ class QtMenuIconFactory:
         self._cache: dict[tuple[str, bool], Any] = {}
 
     def icon(self, kind: str | None, *, disabled: bool = False):
-        QtWidgets, QtGui, _QtCore = _load_qt()
+        _QtWidgets, QtGui, _QtCore = _load_qt()
         if kind is None:
             return None
         key = (kind, bool(disabled))
         if key in self._cache:
             return self._cache[key]
         try:
-            from matplotlib.backends.backend_agg import FigureCanvasAgg
-            from matplotlib.figure import Figure
-
-            fig = Figure(figsize=(self.size_px / self.dpi, self.size_px / self.dpi), dpi=self.dpi)
-            fig.patch.set_alpha(0.0)
-            FigureCanvasAgg(fig)
-            ax = fig.add_axes([0, 0, 1, 1])
-            ax.set_axis_off()
-            draw_menu_icon_on_axes(ax, kind, disabled=disabled)
-            fig.canvas.draw()
-            buf = np.asarray(fig.canvas.buffer_rgba())
-            height, width, _channels = buf.shape
-            image = QtGui.QImage(buf.tobytes(), width, height, width * 4, QtGui.QImage.Format.Format_RGBA8888).copy()
-            pixmap = QtGui.QPixmap.fromImage(image)
-            icon = QtGui.QIcon(pixmap)
+            icon = QtGui.QIcon()
+            normal_pixmap = self._render_pixmap(QtGui, kind, disabled=False)
+            disabled_pixmap = self._render_pixmap(QtGui, kind, disabled=True)
+            icon.addPixmap(normal_pixmap, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
+            icon.addPixmap(normal_pixmap, QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.On)
+            icon.addPixmap(disabled_pixmap, QtGui.QIcon.Mode.Disabled, QtGui.QIcon.State.Off)
+            icon.addPixmap(disabled_pixmap, QtGui.QIcon.Mode.Disabled, QtGui.QIcon.State.On)
+            if disabled:
+                icon = QtGui.QIcon(disabled_pixmap)
         except Exception:
             icon = QtGui.QIcon()
         self._cache[key] = icon
         return icon
+
+    def _render_pixmap(self, QtGui: Any, kind: str, *, disabled: bool):
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
+
+        fig = Figure(figsize=(self.size_px / self.dpi, self.size_px / self.dpi), dpi=self.dpi)
+        fig.patch.set_alpha(0.0)
+        FigureCanvasAgg(fig)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.set_axis_off()
+        draw_menu_icon_on_axes(ax, kind, disabled=disabled)
+        fig.canvas.draw()
+        buf = np.asarray(fig.canvas.buffer_rgba())
+        height, width, _channels = buf.shape
+        image = QtGui.QImage(buf.tobytes(), width, height, width * 4, QtGui.QImage.Format.Format_RGBA8888).copy()
+        return QtGui.QPixmap.fromImage(image)
 
 
 class QtContextMenu:
