@@ -4659,6 +4659,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
                 ("end",),
             ],
         )
+        self.assertEqual(plotter.readouts, [])
         self.assertEqual(len(plotter.view_stack), 1)
 
     def test_zoom_left_click_without_drag_does_not_zoom(self):

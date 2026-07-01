@@ -4996,7 +4996,12 @@ class MatlabLikeAxesBase:
 
     def on_mouse_move(self, event: PointerEvent) -> None:
         self.hover_axes = event.axes
+        has_active_drag = any(
+            drag is not None for drag in (self._drag, self._zoom_drag, self._brush_drag, self._rotate_drag)
+        )
         if (
+            not has_active_drag
+            and
             event.axes is not None
             and event.xdata is not None
             and event.ydata is not None
