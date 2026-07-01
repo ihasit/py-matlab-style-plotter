@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.2.5"
+version = "0.2.6"
 ```
 
 Use semantic versioning:

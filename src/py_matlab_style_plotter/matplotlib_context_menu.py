@@ -713,15 +713,15 @@ class MatplotlibContextMenu:
 
     def _draw_menu(self, items, x: float, y: float, *, level: int, parent_patch=None) -> None:
         entries = list(items)
-        row_height = 0.027
-        separator_height = 0.006
-        check_width = 0.011
-        padding_x = 0.007
-        icon_width = 0.016
+        row_height = 0.0243
+        separator_height = 0.0054
+        check_width = 0.010
+        padding_x = 0.006
+        icon_width = 0.0145
         icon_x = padding_x + check_width + 0.001
-        text_x = icon_x + icon_width + 0.004
-        arrow_padding = 0.007
-        padding_y = 0.004
+        text_x = icon_x + icon_width + 0.0035
+        arrow_padding = 0.006
+        padding_y = 0.0036
         menu_width = self._menu_width(entries)
         menu_height = padding_y * 2 + sum(separator_height if item is None else row_height for item in entries)
         x = min(max(x, 0.01), 0.99 - menu_width)
@@ -744,7 +744,7 @@ class MatplotlibContextMenu:
                     x + 0.006,
                     sep_y,
                     menu_width - 0.012,
-                    0.001,
+                    0.0009,
                     face="#d0d0d0",
                     edge="#d0d0d0",
                     line=0.0,
@@ -810,7 +810,7 @@ class MatplotlibContextMenu:
             current_y -= row_height
 
     def _draw_menu_sample(self, method_name: str, x: float, y: float, width: float, height: float, level: int, *, disabled: bool = False):
-        sample_x = x + width - 0.024
+        sample_x = x + width - 0.022
         sample_y = y + height / 2
         color_value = "#9a9a9a" if disabled else "#202020"
         if method_name.startswith("matlab_color_"):
@@ -819,9 +819,9 @@ class MatplotlibContextMenu:
             if color is not None:
                 self._add_patch(
                     sample_x,
-                    sample_y - 0.007,
-                    0.022,
-                    0.014,
+                    sample_y - 0.0054,
+                    0.020,
+                    0.0108,
                     face=color,
                     edge="#5f5f5f",
                     line=0.4,
@@ -848,7 +848,7 @@ class MatplotlibContextMenu:
                 "matlab_marker_point": ".",
             }.get(method_name)
             if marker_text:
-                self._add_text(sample_x + 0.012, sample_y, marker_text, ha="center", size=9, color=color_value, z=20_004 + level * 100)
+                self._add_text(sample_x + 0.010, sample_y, marker_text, ha="center", size=9, color=color_value, z=20_004 + level * 100)
 
     def _draw_menu_icon(self, kind: str, x: float, y: float, width: float, height: float, level: int, *, disabled: bool = False) -> None:
         cx = x + width / 2
@@ -1088,10 +1088,10 @@ class MatplotlibContextMenu:
         longest = max((len(label) for label in labels), default=8)
         has_submenu = any(item is not None and isinstance(item[1], tuple) for item in entries)
         has_sample = any(item is not None and not isinstance(item[1], tuple) and str(item[1]).startswith(("matlab_marker_", "matlab_line_", "matlab_color_")) for item in entries)
-        right_space = 0.020 if has_submenu else 0.0
+        right_space = 0.018 if has_submenu else 0.0
         if has_sample:
-            right_space = max(right_space, 0.032)
-        return max(0.092, min(0.172, 0.048 + longest * 0.0058 + right_space))
+            right_space = max(right_space, 0.029)
+        return max(0.083, min(0.155, 0.043 + longest * 0.0052 + right_space))
 
     def _add_patch(self, x, y, width, height, *, face, edge, line, z):
         patch = Rectangle(

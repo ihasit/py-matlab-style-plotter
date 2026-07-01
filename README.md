@@ -48,7 +48,7 @@ includes the Matplotlib adapter and event bridge.
 The package version is defined in `pyproject.toml`:
 
 ```toml
-version = "0.2.5"
+version = "0.2.6"
 ```
 
 Use semantic versioning:

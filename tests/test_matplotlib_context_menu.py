@@ -146,6 +146,22 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         menu.close()
         plt.close(fig)
 
+    def test_menu_size_stays_compact(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        event = FakeMouseEvent(100, 100, axes=axes, button=3)
+        self.assertTrue(menu._on_press(event))
+
+        self.assertLessEqual(menu._items[0]["menu_width"], 0.155)
+        self.assertGreater(menu._items[0]["menu_width"], 0.10)
+        self.assertLessEqual(menu._items[0]["menu_height"], 0.49)
+        self.assertGreater(menu._items[0]["menu_height"], 0.36)
+
+        menu.close()
+        plt.close(fig)
+
     def test_menu_checks_display_link_and_selected_line_style_state(self):
         fig, axes = plt.subplots()
         line, = axes.plot([0, 1], [0, 1], label="a", marker="s", linestyle="--", color="#A2142F")
