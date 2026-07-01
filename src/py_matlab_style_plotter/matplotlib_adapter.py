@@ -134,6 +134,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         self.x_axes_linked = False
         self.selection_pick_tolerance = 0.05
         self.data_tip_pick_tolerance = 0.05
+        self.brush_pick_tolerance = 0.05
         self.coordinate_readout_z_tolerance = 0.05
         self.mode_label_enabled = True
         self.active_axes_highlight_enabled = False
@@ -1587,7 +1588,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         if not self._is_finite_box(start, end):
             return
         multi_select = bool(modifiers & {"shift", "control", "ctrl", "cmd", "super"})
-        brushed_points = self.find_line_points_in_box(axes, start, end)
+        brushed_points = self._brush_points_for_box_or_click(axes, start, end)
         brushed = [line for line, _points in brushed_points]
         had_selection = bool(self.selected_lines)
         had_brushed_points = bool(self.brushed_points)
@@ -1600,6 +1601,30 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
                 changed = True
         if changed and (multi_select or brushed):
             self._draw_idle(axes)
+
+    def _brush_points_for_box_or_click(
+        self,
+        axes: Any,
+        start: tuple[float, float],
+        end: tuple[float, float],
+    ) -> list[tuple[Any, tuple[tuple[int, float, float, float | None], ...]]]:
+        if not self._is_click_sized_data_box(axes, start, end):
+            return self.find_line_points_in_box(axes, start, end)
+        nearest = self.find_nearest_line_point(axes, end[0], end[1])
+        if nearest is None:
+            return []
+        line, index, point_x, point_y, point_z = nearest
+        if self._normalized_point_distance(axes, point_x, point_y, end[0], end[1]) > self.brush_pick_tolerance:
+            return []
+        return [(line, ((index, point_x, point_y, point_z),))]
+
+    def _is_click_sized_data_box(
+        self,
+        axes: Any,
+        start: tuple[float, float],
+        end: tuple[float, float],
+    ) -> bool:
+        return self._normalized_point_distance(axes, start[0], start[1], end[0], end[1]) <= self.brush_pick_tolerance
 
     def _set_brushed_points(self, axes: Any, line: Any, points: tuple[tuple[int, float, float, float | None], ...]) -> bool:
         self._clear_brushed_points_for_line(line)

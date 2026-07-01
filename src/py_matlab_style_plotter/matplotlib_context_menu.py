@@ -190,6 +190,32 @@ _MODE_BY_METHOD = {
     "matlab_select": "select",
     "matlab_brush": "brush",
 }
+_MARKER_BY_METHOD = {
+    "matlab_marker_none": "None",
+    "matlab_marker_circle": "o",
+    "matlab_marker_square": "s",
+    "matlab_marker_triangle": "^",
+    "matlab_marker_x": "x",
+    "matlab_marker_plus": "+",
+    "matlab_marker_point": ".",
+}
+_LINESTYLE_BY_METHOD = {
+    "matlab_line_solid": "-",
+    "matlab_line_dashed": "--",
+    "matlab_line_dashdot": "-.",
+    "matlab_line_dotted": ":",
+    "matlab_line_none": "None",
+}
+_COLOR_BY_METHOD = {
+    "matlab_color_blue": "blue",
+    "matlab_color_orange": "orange",
+    "matlab_color_yellow": "yellow",
+    "matlab_color_purple": "purple",
+    "matlab_color_green": "green",
+    "matlab_color_cyan": "cyan",
+    "matlab_color_red": "red",
+    "matlab_color_black": "black",
+}
 _COLOR_ICON_BY_KIND = {
     "color_blue": "#0072BD",
     "color_orange": "#D95319",
@@ -989,10 +1015,68 @@ class MatplotlibContextMenu:
 
     def _is_checked_method(self, method_name: str) -> bool:
         mode = _MODE_BY_METHOD.get(method_name)
-        if mode is None:
+        if mode is not None:
+            current = str(getattr(self.plotter.mode, "value", self.plotter.mode))
+            return current == mode
+        status = self._display_or_link_checked(method_name)
+        if status is not None:
+            return status
+        if method_name in _MARKER_BY_METHOD:
+            return self._selected_lines_have_value("get_marker", _MARKER_BY_METHOD[method_name], self._normalize_none_style)
+        if method_name in _LINESTYLE_BY_METHOD:
+            return self._selected_lines_have_value("get_linestyle", _LINESTYLE_BY_METHOD[method_name], self._normalize_line_style)
+        color_name = _COLOR_BY_METHOD.get(method_name)
+        if color_name is not None:
+            return self._selected_lines_have_value("get_color", self.actions._COLORS[color_name], self._normalize_color)
+        return False
+
+    def _display_or_link_checked(self, method_name: str) -> bool | None:
+        axes = self.plotter.active_axes
+        if method_name == "matlab_hold":
+            return bool(self.plotter.hold_enabled)
+        if axes is None:
             return False
-        current = str(getattr(self.plotter.mode, "value", self.plotter.mode))
-        return current == mode
+        if method_name == "matlab_grid":
+            return bool(self.plotter.grid_is_enabled(axes))
+        if method_name == "matlab_legend":
+            return bool(self.plotter.legend_is_enabled(axes))
+        if method_name == "matlab_box":
+            return bool(self.plotter.box_is_enabled(axes))
+        if method_name == "matlab_colorbar":
+            return bool(self.plotter.colorbar_is_enabled(axes))
+        if method_name == "matlab_link_x":
+            return bool(self.plotter.linked_axes_state.get("x"))
+        if method_name == "matlab_link_y":
+            return bool(self.plotter.linked_axes_state.get("y"))
+        if method_name == "matlab_link_xy":
+            return bool(self.plotter.linked_axes_state.get("xy"))
+        return None
+
+    def _selected_lines_have_value(self, getter_name: str, expected: Any, normalizer) -> bool:
+        lines = self.actions._target_lines()
+        if len(lines) != 1:
+            return False
+        getter = getattr(lines[0], getter_name, None)
+        if getter is None:
+            return False
+        return normalizer(getter()) == normalizer(expected)
+
+    def _normalize_none_style(self, value: Any) -> str:
+        text = str(value)
+        return "None" if text.lower() in {"none", "", " "} else text
+
+    def _normalize_line_style(self, value: Any) -> str:
+        text = self._normalize_none_style(value)
+        aliases = {"solid": "-", "dashed": "--", "dashdot": "-.", "dotted": ":"}
+        return aliases.get(text.lower(), text)
+
+    def _normalize_color(self, value: Any) -> tuple[float, ...] | str:
+        try:
+            from matplotlib.colors import to_rgba
+
+            return tuple(round(float(channel), 3) for channel in to_rgba(value))
+        except (TypeError, ValueError):
+            return str(value)
 
     def _is_disabled_item(self, label: str, action_or_submenu) -> bool:
         if label in _SELECTION_REQUIRED_LABELS and not self.plotter.selected_lines:

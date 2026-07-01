@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.2.4"
+version = "0.2.5"
 ```
 
 Use semantic versioning:
@@ -294,6 +294,8 @@ The menu includes:
 - selection: Hide Selected, Clear Selection, Delete
 
 The current interaction mode is marked with a check in the mode section.
+Display/link state and the selected line's marker, line style, and color are
+also checked where they map to a menu entry.
 
 Marker, line, and color commands require selected lines. When no line is
 selected, those menu entries are disabled.
@@ -322,10 +324,11 @@ and is excluded from picking, brushing, and legends.
 
 ### Brush
 
-Brush mode drag-selects data points in a rectangular region:
+Brush mode selects data points by click or by dragging a rectangular region:
 
 - brushed points are highlighted with marker overlays
 - the whole line is not selected or highlighted
+- a click-sized brush marks the nearest point within pick tolerance
 - Shift/Ctrl/Cmd additive brushing keeps existing brushed points
 - non-additive brushing clears previous brush/selection state first
 

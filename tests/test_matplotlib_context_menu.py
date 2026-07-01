@@ -25,6 +25,12 @@ class FakeMouseEvent:
         self.key = None
 
 
+def _checked(model, submenu_label, item_label):
+    submenu = next(item for item in model if item.get("label") == submenu_label)
+    action = next(item for item in submenu["items"] if item.get("label") == item_label)
+    return bool(action.get("checked"))
+
+
 class MatplotlibContextMenuTest(unittest.TestCase):
     def test_right_click_opens_menu_without_creating_axes(self):
         fig, axes = plt.subplots()
@@ -138,6 +144,30 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         self.assertEqual(len(checked_lines), 1)
 
         menu.close()
+        plt.close(fig)
+
+    def test_menu_checks_display_link_and_selected_line_style_state(self):
+        fig, axes = plt.subplots()
+        line, = axes.plot([0, 1], [0, 1], label="a", marker="s", linestyle="--", color="#A2142F")
+        axes.grid(True)
+        axes.legend()
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        plotter.linked_axes_state["x"] = True
+        plotter.select_line(line)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        model = menu.build_menu_model()
+
+        self.assertTrue(_checked(model, "Display", "Grid"))
+        self.assertTrue(_checked(model, "Display", "Legend"))
+        self.assertTrue(_checked(model, "Link Axes", "Link X"))
+        self.assertFalse(_checked(model, "Link Axes", "Link Y"))
+        self.assertTrue(_checked(model, "Marker", "Square"))
+        self.assertTrue(_checked(model, "Line Style", "Dashed"))
+        self.assertTrue(_checked(model, "Color", "Red"))
+        self.assertFalse(_checked(model, "Marker", "Circle"))
+
         plt.close(fig)
 
     def test_line_style_actions_apply_only_to_selected_line_and_refresh_legend(self):

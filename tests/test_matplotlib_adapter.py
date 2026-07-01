@@ -1768,6 +1768,20 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(state.artist.args[:2], ([1.0, 2.0], [1.0, 2.0]))
         self.assertIn(state.artist, axes.collections)
 
+    def test_brush_click_highlights_nearest_point(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0, 8.0], [1.0, 2.0, 8.0], label="series")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.brush_box(axes, (2.01, 2.01), (2.01, 2.01), frozenset())
+
+        self.assertEqual(len(plotter.brushed_points), 1)
+        state = plotter.brushed_points[0]
+        self.assertIs(state.line, line)
+        self.assertEqual(state.indices, (1,))
+        self.assertEqual(state.artist.args[:2], ([2.0], [2.0]))
+
     def test_brush_box_skips_nonfinite_points_and_keeps_original_indices(self):
         axes = FakeAxes()
         line = FakeLine([1.0, float("nan"), 2.0, 8.0], [1.0, 2.0, 2.0, 8.0], label="series")
