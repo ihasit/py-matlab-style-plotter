@@ -1388,6 +1388,35 @@ class MatplotlibAxesPlotterDataCursorTest(unittest.TestCase):
         self.assertEqual(len(axes.annotations), 1)
         self.assertEqual(axes.figure.canvas.draw_count, 1)
 
+    def test_create_data_tip_replaces_existing_tip_by_default(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0, 3.0], [1.0, 4.0, 9.0], label="quad")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.create_data_tip(axes, 1.0, 1.0)
+        first_tip = plotter.data_tips[0]
+        plotter.create_data_tip(axes, 3.0, 9.0)
+
+        self.assertEqual(len(plotter.data_tips), 1)
+        self.assertEqual(plotter.data_tips[0].index, 2)
+        self.assertTrue(first_tip.annotation.removed)
+        self.assertTrue(first_tip.marker.removed)
+
+    def test_create_data_tip_with_control_adds_new_tip(self):
+        axes = FakeAxes()
+        line = FakeLine([1.0, 2.0, 3.0], [1.0, 4.0, 9.0], label="quad")
+        axes.set_lines([line])
+        plotter = MatplotlibAxesPlotter(axes)
+
+        plotter.create_data_tip(axes, 1.0, 1.0)
+        plotter.create_data_tip(axes, 3.0, 9.0, frozenset({"control"}))
+
+        self.assertEqual(len(plotter.data_tips), 2)
+        self.assertEqual([tip.index for tip in plotter.data_tips], [0, 2])
+        self.assertFalse(plotter.data_tips[0].annotation.removed)
+        self.assertFalse(plotter.data_tips[0].marker.removed)
+
     def test_create_data_tip_ignores_clicks_outside_pick_tolerance(self):
         axes = FakeAxes()
         line = FakeLine([1.0], [1.0], label="a")

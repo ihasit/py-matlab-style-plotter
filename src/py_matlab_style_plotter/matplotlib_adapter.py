@@ -1538,7 +1538,7 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return scatter(xs, ys, [float(point_z) for point_z in z_values], **kwargs)
         return scatter(xs, ys, **kwargs)
 
-    def create_data_tip(self, axes: Any, x: float, y: float) -> None:
+    def create_data_tip(self, axes: Any, x: float, y: float, modifiers: frozenset[str] = frozenset()) -> None:
         if not self._is_finite_pair(x, y):
             return
         nearest = self.find_nearest_line_point(axes, x, y)
@@ -1549,6 +1549,9 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             return
         if self.has_data_tip(axes, line, index):
             return
+        append_tip = bool(modifiers & {"control", "ctrl"})
+        if not append_tip:
+            self._remove_data_tips_for_axes(axes)
         label = self.format_data_tip(line, index, point_x, point_y, point_z)
         annotation = axes.annotate(
             label,
@@ -1576,6 +1579,25 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
             self._remove_data_tip(tip)
             self._draw_idle(tip.axes)
         self.data_tips = remaining
+
+    def _remove_data_tips_for_axes(self, axes: Any) -> None:
+        tips_to_remove = [tip for tip in self.data_tips if tip.axes is axes]
+        if not tips_to_remove:
+            return
+        self.data_tips = [tip for tip in self.data_tips if not any(tip is removed_tip for removed_tip in tips_to_remove)]
+        self.selected_data_tips = [
+            state
+            for state in self.selected_data_tips
+            if not self._remove_selected_data_tip_if_present(state, tips_to_remove)
+        ]
+        for tip in tips_to_remove:
+            self._remove_data_tip(tip)
+
+    def _remove_selected_data_tip_if_present(self, state: SelectedDataTipState, tips: list[DataTip]) -> bool:
+        if not any(state.tip is tip for tip in tips):
+            return False
+        self._remove_artist(state.highlight)
+        return True
 
     def clear_data_tips_for_lines(self, lines: set[Any]) -> None:
         remaining = []

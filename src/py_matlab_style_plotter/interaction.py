@@ -4979,7 +4979,7 @@ class MatlabLikeAxesBase:
                 return
             if event.xdata is None or event.ydata is None or not self._is_finite_pair(event.xdata, event.ydata):
                 return
-            self.create_data_tip(event.axes, event.xdata, event.ydata)
+            self.create_data_tip(event.axes, event.xdata, event.ydata, event.modifiers)
         elif self.mode == InteractionMode.SELECT:
             if button != MouseButton.LEFT:
                 return
@@ -5750,7 +5750,7 @@ class MatlabLikeAxesBase:
 
         return True
 
-    def create_data_tip(self, axes: Any, x: float, y: float) -> None:
+    def create_data_tip(self, axes: Any, x: float, y: float, modifiers: frozenset[str] = frozenset()) -> None:
         """Hook for data cursor integrations."""
 
     def select_nearest_artist(

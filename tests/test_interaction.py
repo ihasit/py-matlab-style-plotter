@@ -201,8 +201,8 @@ class FakePlotter(MatlabLikeAxesBase):
     def update_coordinate_readout(self, axes, x, y):
         self.readouts.append((axes, x, y))
 
-    def create_data_tip(self, axes, x, y):
-        self.data_tips.append((axes, x, y))
+    def create_data_tip(self, axes, x, y, modifiers=frozenset()):
+        self.data_tips.append((axes, x, y, modifiers))
 
     def select_nearest_artist(self, axes, x, y, modifiers):
         self.selections.append((axes, x, y, modifiers))
@@ -1350,7 +1350,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         plotter.set_mode("data_cursor")
         plotter.on_mouse_press(PointerEvent(axes=axes, xdata=1.0, ydata=0.1, button="mousebutton.left"))
-        self.assertEqual(plotter.data_tips, [(axes, 1.0, 0.1)])
+        self.assertEqual(plotter.data_tips, [(axes, 1.0, 0.1, frozenset())])
 
     def test_active_axes_queries_and_noop_reselection(self):
         axes1 = FakeAxes("a1")
@@ -4923,7 +4923,15 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
 
         plotter.set_mode("data_cursor")
         plotter.on_mouse_press(PointerEvent(axes=axes, xdata=1.0, ydata=2.0, button="left"))
-        self.assertEqual(plotter.data_tips, [(axes, 1.0, 2.0)])
+        self.assertEqual(plotter.data_tips, [(axes, 1.0, 2.0, frozenset())])
+
+        plotter.on_mouse_press(
+            PointerEvent(axes=axes, xdata=1.5, ydata=2.5, button="left", modifiers=frozenset({"control"}))
+        )
+        self.assertEqual(
+            plotter.data_tips,
+            [(axes, 1.0, 2.0, frozenset()), (axes, 1.5, 2.5, frozenset({"control"}))],
+        )
 
         plotter.set_mode("select")
         plotter.on_mouse_press(
