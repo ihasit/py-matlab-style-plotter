@@ -1207,14 +1207,54 @@ class MatplotlibContextMenu:
                     getattr(self.actions, item["method"])()
                     return True
             if is_axes_right_click:
+                self._prepare_context_selection(event)
                 self._open(float(figure_xy[0]), float(figure_xy[1]), event.inaxes)
                 return True
             self.close()
             return True
         if not is_axes_right_click:
             return False
+        self._prepare_context_selection(event)
         self._open(float(figure_xy[0]), float(figure_xy[1]), event.inaxes)
         return True
+
+    def _prepare_context_selection(self, event) -> None:
+        if self.plotter.selected_lines:
+            return
+        axes = getattr(event, "inaxes", None)
+        xdata = getattr(event, "xdata", None)
+        ydata = getattr(event, "ydata", None)
+        if axes is None:
+            return
+        for line in getattr(axes, "lines", []):
+            if not self.plotter._line_is_pickable(line):
+                continue
+            contains = getattr(line, "contains", None)
+            if contains is None:
+                continue
+            try:
+                hit, _details = contains(event)
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if hit:
+                self.plotter.select_line(line)
+                self.plotter._draw_idle(axes)
+                return
+        if xdata is None or ydata is None:
+            return
+        try:
+            if not self.plotter._is_finite_pair(float(xdata), float(ydata)):
+                return
+        except (TypeError, ValueError):
+            return
+        nearest = self.plotter.find_nearest_line_point(axes, float(xdata), float(ydata))
+        if nearest is None:
+            return
+        line, _index, point_x, point_y, _point_z = nearest
+        if self.plotter._normalized_point_distance(axes, point_x, point_y, float(xdata), float(ydata)) > self.plotter.selection_pick_tolerance:
+            return
+        self.plotter.select_line(line)
+        self.plotter._draw_idle(axes)
 
     def _is_right_click(self, button) -> bool:
         if button == 3:

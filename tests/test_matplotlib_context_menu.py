@@ -246,6 +246,29 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         menu.close()
         plt.close(fig)
 
+    def test_right_click_line_selects_context_target_for_style_menu(self):
+        fig, axes = plt.subplots()
+        line, = axes.plot([0, 1], [0, 1], label="a", marker="o", color="blue")
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+        x, y = axes.transData.transform((0.5, 0.5))
+
+        event = FakeMouseEvent(x, y, axes=axes, button=3)
+        event.xdata = 0.5
+        event.ydata = 0.5
+        self.assertTrue(menu._on_press(event))
+
+        self.assertTrue(plotter.is_line_selected(line))
+        style_items = [
+            item
+            for item in menu._items
+            if item["level"] == 0 and item["submenu"] is not None and item["method"] is None
+        ][:3]
+        self.assertEqual([item["disabled"] for item in style_items], [False, False, False])
+
+        menu.close()
+        plt.close(fig)
+
     def test_marker_none_icon_is_not_x_marker(self):
         fig, axes = plt.subplots()
         plotter = MatplotlibAxesPlotter(axes)
