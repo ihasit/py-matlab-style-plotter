@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.2.6"
+version = "0.3.0"
 ```
 
 Use semantic versioning:
@@ -37,10 +37,10 @@ Recommended release flow:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.4"
-git tag -a v0.1.4 -m "Release v0.1.4"
+git commit -m "Release v0.3.0"
+git tag -a v0.3.0 -m "Release v0.3.0"
 git push origin main
-git push origin v0.1.4
+git push origin v0.3.0
 ```
 
 On GitHub, pushing a `v*` tag triggers `.github/workflows/release.yml`. The
@@ -53,7 +53,7 @@ workflow:
 - uploads `dist/*` as release assets
 
 The generated wheel is universal for this pure-Python package, for example
-`py_matlab_style_plotter-0.1.4-py3-none-any.whl`.
+`py_matlab_style_plotter-0.3.0-py3-none-any.whl`.
 
 Do not commit generated package artifacts. `.gitignore` excludes `dist/`,
 `build/`, `*.egg-info/`, and `*.whl`; GitHub Actions should recreate them for
@@ -70,7 +70,7 @@ For reproducible project dependencies, pin a Git tag:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.4",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.3.0",
 ]
 ```
 
@@ -108,6 +108,20 @@ plt.show()
 backend-neutral interaction state machine and routes right-clicks to the menu.
 Use `py_matlab_style_plotter.__version__` when an application needs to display
 or log the installed package version.
+
+The right-click menu includes View > Auto View, which fits the active axes to
+the current data range. It also includes Export Data > CSV and Export Data >
+JSON. In a GUI Matplotlib session, export opens a save-file dialog so the user
+can choose the directory and file name. If no save dialog is available, the menu
+action does not write a file unless the application provides its own path
+policy:
+
+```python
+context_menu.actions.export_path_provider = lambda fmt, axes: f"plot_data.{fmt}"
+```
+
+CSV export writes a long table with artist metadata and point values. JSON
+export keeps the data grouped by artist.
 
 ## 4. Plotting Commands
 

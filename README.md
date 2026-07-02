@@ -48,7 +48,7 @@ includes the Matplotlib adapter and event bridge.
 The package version is defined in `pyproject.toml`:
 
 ```toml
-version = "0.2.6"
+version = "0.3.0"
 ```
 
 Use semantic versioning:
@@ -62,10 +62,10 @@ change, and create a matching Git tag:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.1.4"
-git tag -a v0.1.4 -m "Release v0.1.4"
+git commit -m "Release v0.3.0"
+git tag -a v0.3.0 -m "Release v0.3.0"
 git push origin main
-git push origin v0.1.4
+git push origin v0.3.0
 ```
 
 Other projects should pin a tag instead of tracking `main`:
@@ -73,7 +73,7 @@ Other projects should pin a tag instead of tracking `main`:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.1.4",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.3.0",
 ]
 ```
 
@@ -128,6 +128,7 @@ The demo includes:
 - brush highlights for selected points only
 - selected line highlighting
 - home/back/forward view history
+- Auto View and CSV/JSON data export from the right-click menu
 - keyboard shortcuts and linked axes controls
 
 See [docs/USAGE.md](docs/USAGE.md) for the full usage guide and shortcut list.
@@ -137,6 +138,11 @@ See [docs/USAGE.md](docs/USAGE.md) for the full usage guide and shortcut list.
 In the demo:
 
 - Right-click an axes to open the MATLAB-style context menu.
+- Use View > Auto View to fit the axes to the current plotted data.
+- Use Export Data > CSV or Export Data > JSON to export visible plotted data
+  from the active axes. GUI sessions show a save-file dialog; if no dialog is
+  available, the menu action does not write a file unless the application
+  provides a path policy.
 - Mouse wheel zooms the axes under the pointer.
 - Double-click an axes to restore its home view.
 - `p`, `z`, `r`, `d`, `s`, and `B` toggle pan, zoom, rotate3d, data cursor,

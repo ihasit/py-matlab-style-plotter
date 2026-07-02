@@ -1,4 +1,9 @@
 import unittest
+import csv
+import json
+import tempfile
+from pathlib import Path
+from unittest import mock
 
 import matplotlib
 
@@ -184,6 +189,200 @@ class MatplotlibContextMenuTest(unittest.TestCase):
         self.assertTrue(_checked(model, "Color", "Red"))
         self.assertFalse(_checked(model, "Marker", "Circle"))
 
+        plt.close(fig)
+
+    def test_menu_model_includes_auto_view_and_export_data(self):
+        fig, axes = plt.subplots()
+        plotter = MatplotlibAxesPlotter(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        model = menu.build_menu_model()
+        view = next(item for item in model if item.get("label") == "View")
+        export = next(item for item in model if item.get("label") == "Export Data")
+
+        self.assertTrue(any(item.get("label") == "Auto View" and item.get("method") == "matlab_auto_view" for item in view["items"]))
+        self.assertEqual([item.get("method") for item in export["items"]], ["matlab_export_csv", "matlab_export_json"])
+
+        plt.close(fig)
+
+    def test_auto_view_action_applies_tight_axis(self):
+        fig, axes = plt.subplots()
+        axes.plot([10, 20], [-5, 5])
+        axes.set_xlim(0, 1)
+        axes.set_ylim(0, 1)
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        menu.actions.matlab_auto_view()
+
+        xlim = axes.get_xlim()
+        ylim = axes.get_ylim()
+        self.assertLessEqual(xlim[0], 10)
+        self.assertGreaterEqual(xlim[1], 20)
+        self.assertLessEqual(ylim[0], -5)
+        self.assertGreaterEqual(ylim[1], 5)
+
+        plt.close(fig)
+
+    def test_export_actions_write_line_data_to_csv_and_json(self):
+        fig, axes = plt.subplots()
+        axes.set_title("export axes")
+        axes.plot([0, 1, 2], [3, 4, 5], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = {
+                "csv": Path(tmpdir) / "plot_data.csv",
+                "json": Path(tmpdir) / "plot_data.json",
+            }
+            actions = menu_actions = MatplotlibContextMenu(fig, plotter).actions
+            actions.export_path_provider = lambda fmt, _axes: paths[fmt]
+
+            csv_path = menu_actions.matlab_export_csv()
+            json_path = menu_actions.matlab_export_json()
+
+            self.assertEqual(csv_path, paths["csv"])
+            self.assertEqual(json_path, paths["json"])
+            with paths["csv"].open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(rows[0]["artist_type"], "line")
+            self.assertEqual(rows[0]["label"], "line a")
+            self.assertEqual(rows[2]["x"], "2")
+            self.assertEqual(rows[2]["y"], "5")
+            data = json.loads(paths["json"].read_text(encoding="utf-8"))
+            self.assertEqual(data["axes_title"], "export axes")
+            self.assertEqual(data["artists"][0]["points"][1]["x"], 1)
+            self.assertEqual(data["artists"][0]["points"][1]["y"], 4)
+
+        plt.close(fig)
+
+    def test_export_includes_3d_line_z_data(self):
+        fig = plt.figure()
+        axes = fig.add_subplot(111, projection="3d")
+        axes.plot([0, 1], [2, 3], [4, 5], label="line3")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "plot3.json"
+            actions = MatplotlibContextMenu(fig, plotter).actions
+            actions.export_path_provider = lambda _fmt, _axes: path
+
+            json_path = actions.matlab_export_json()
+
+            self.assertEqual(json_path, path)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["artists"][0]["points"][0]["z"], 4)
+            self.assertEqual(data["artists"][0]["points"][1]["z"], 5)
+
+        plt.close(fig)
+
+    def test_export_skips_internal_selection_highlight_artists(self):
+        fig, axes = plt.subplots()
+        line, = axes.plot([0, 1], [2, 3], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        plotter.select_line(line)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        data = menu.actions.collect_axes_data(axes)
+
+        self.assertEqual(len(data["artists"]), 1)
+        self.assertEqual(data["artists"][0]["label"], "line a")
+        self.assertEqual(data["artists"][0]["points"][1]["y"], 3)
+        plt.close(fig)
+
+    def test_export_uses_qt_save_dialog_when_available(self):
+        fig, axes = plt.subplots()
+        axes.plot([0, 1], [2, 3], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            selected = Path(tmpdir) / "chosen.csv"
+            with mock.patch("matplotlib.backends.qt_compat.QtWidgets.QApplication.instance", return_value=object()):
+                with mock.patch(
+                    "matplotlib.backends.qt_compat.QtWidgets.QFileDialog.getSaveFileName",
+                    return_value=(str(selected), "CSV files (*.csv)"),
+                ) as dialog:
+                    path = menu.actions.matlab_export_csv()
+
+            self.assertEqual(path, selected)
+            self.assertTrue(selected.exists())
+            dialog.assert_called_once()
+
+        plt.close(fig)
+
+    def test_export_cancelled_qt_save_dialog_does_not_write_file(self):
+        fig, axes = plt.subplots()
+        axes.plot([0, 1], [2, 3], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        with mock.patch("matplotlib.backends.qt_compat.QtWidgets.QApplication.instance", return_value=object()):
+            with mock.patch(
+                "matplotlib.backends.qt_compat.QtWidgets.QFileDialog.getSaveFileName",
+                return_value=("", "CSV files (*.csv)"),
+            ):
+                with mock.patch.object(menu.actions, "_tk_save_file_path", return_value=(None, False)):
+                    path = menu.actions.matlab_export_csv()
+
+        self.assertIsNone(path)
+        self.assertIsNone(menu.actions.last_export_path)
+        plt.close(fig)
+
+    def test_menu_export_without_dialog_or_provider_does_not_write_default_file(self):
+        fig, axes = plt.subplots()
+        axes.plot([0, 1], [2, 3], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        with mock.patch.object(menu.actions, "_qt_widgets_module", return_value=None):
+            with mock.patch.object(menu.actions, "_tk_save_file_path", return_value=(None, False)):
+                path = menu.actions.matlab_export_csv()
+
+        self.assertIsNone(path)
+        self.assertIsNone(menu.actions.last_export_path)
+        plt.close(fig)
+
+    def test_export_uses_tk_save_dialog_when_qt_is_not_available(self):
+        fig, axes = plt.subplots()
+        axes.plot([0, 1], [2, 3], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            selected = Path(tmpdir) / "chosen.json"
+            with mock.patch.object(menu.actions, "_qt_widgets_module", return_value=None):
+                with mock.patch.object(menu.actions, "_tk_save_file_path", return_value=(selected, True)) as dialog:
+                    path = menu.actions.matlab_export_json()
+
+            self.assertEqual(path, selected)
+            self.assertTrue(selected.exists())
+            dialog.assert_called_once_with("json")
+
+        plt.close(fig)
+
+    def test_export_provider_cancel_prevents_dialog_fallback(self):
+        fig, axes = plt.subplots()
+        axes.plot([0, 1], [2, 3], label="line a")
+        plotter = MatplotlibAxesPlotter(axes)
+        plotter.set_active_axes(axes)
+        menu = MatplotlibContextMenu(fig, plotter)
+        menu.actions.export_path_provider = lambda _fmt, _axes: None
+
+        with mock.patch.object(menu.actions, "_qt_save_file_path") as qt_dialog:
+            with mock.patch.object(menu.actions, "_tk_save_file_path") as tk_dialog:
+                path = menu.actions.matlab_export_csv()
+
+        self.assertIsNone(path)
+        self.assertIsNone(menu.actions.last_export_path)
+        qt_dialog.assert_not_called()
+        tk_dialog.assert_not_called()
         plt.close(fig)
 
     def test_line_style_actions_apply_only_to_selected_line_and_refresh_legend(self):

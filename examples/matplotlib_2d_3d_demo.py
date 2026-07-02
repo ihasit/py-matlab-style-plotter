@@ -2,7 +2,7 @@
 
 Run with:
 
-    PYTHONPATH=src python examples/matplotlib_2d_3d_demo.py
+    python examples/matplotlib_2d_3d_demo.py
 
 Controls:
 
@@ -20,11 +20,32 @@ Controls:
 
 from __future__ import annotations
 
+import os
 import math
+import sys
 import tempfile
 from pathlib import Path
 
 import matplotlib
+
+_REPO_SRC = Path(__file__).resolve().parents[1] / "src"
+if _REPO_SRC.exists() and str(_REPO_SRC) not in sys.path:
+    sys.path.insert(0, str(_REPO_SRC))
+
+
+def _prefer_gui_backend() -> None:
+    if os.environ.get("MPLBACKEND"):
+        return
+    for backend in ("QtAgg", "TkAgg", "MacOSX"):
+        try:
+            matplotlib.use(backend, force=True)
+            return
+        except Exception:
+            continue
+
+
+_prefer_gui_backend()
+
 import matplotlib.pyplot as plt
 
 from py_matlab_style_plotter import (
@@ -66,6 +87,26 @@ class DemoPlotter(MatplotlibAxesPlotter):
         if self._last_readout:
             parts.append(self._last_readout)
         self.status_text.set_text(" | ".join(parts))
+
+
+class DemoContextMenu(MatplotlibContextMenu):
+    def __init__(self, fig, plotter: DemoPlotter):
+        super().__init__(fig, plotter)
+        self._demo_plotter = plotter
+
+    def _on_press(self, event) -> bool:
+        handled = super()._on_press(event)
+        error = self.actions.last_export_error
+        path = self.actions.last_export_path
+        if error:
+            self._demo_plotter._last_readout = f"Export: {error}"
+            self._demo_plotter._refresh_status()
+            self.fig.canvas.draw_idle()
+        elif path is not None:
+            self._demo_plotter._last_readout = f"Exported: {path}"
+            self._demo_plotter._refresh_status()
+            self.fig.canvas.draw_idle()
+        return handled
 
 
 def _wave_data(count: int = 180):
@@ -315,7 +356,7 @@ def main() -> None:
     with plotter.batch_draw_idle():
         _build_gallery(plotter, axes)
 
-    context_menu = MatplotlibContextMenu(fig, plotter)
+    context_menu = DemoContextMenu(fig, plotter)
     bridge = MatplotlibContextMenuEventBridge(plotter, context_menu=context_menu)
     bridge.connect()
     fig._py_matlab_style_context_menu = context_menu
@@ -329,7 +370,7 @@ def main() -> None:
         plotter.set_active_axes(first_axes)
 
     fig.canvas.manager.set_window_title("pyMatlabStylePlotter gallery")
-    if not matplotlib.get_backend().lower().endswith("agg"):
+    if matplotlib.get_backend().lower() != "agg":
         plt.show()
         return
     output = Path(tempfile.gettempdir()) / "py_matlab_style_plotter_gallery.png"

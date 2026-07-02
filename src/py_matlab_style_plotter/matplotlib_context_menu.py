@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+import csv
+from datetime import datetime
+import importlib
+import json
+from pathlib import Path
+import sys
+from typing import Any, Callable
 
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
@@ -59,6 +65,7 @@ _MATLAB_MENU_ITEMS = (
         "View",
         (
             ("Home", "matlab_home"),
+            ("Auto View", "matlab_auto_view"),
             ("Back", "matlab_back"),
             ("Forward", "matlab_forward"),
             None,
@@ -104,6 +111,13 @@ _MATLAB_MENU_ITEMS = (
         ),
     ),
     (
+        "Export Data",
+        (
+            ("CSV", "matlab_export_csv"),
+            ("JSON", "matlab_export_json"),
+        ),
+    ),
+    (
         "Selection",
         (
             ("Hide Selected", "matlab_selected_visibility"),
@@ -141,6 +155,7 @@ _MENU_ICON_BY_METHOD = {
     "matlab_color_red": "color_red",
     "matlab_color_black": "color_black",
     "matlab_home": "home",
+    "matlab_auto_view": "auto_view",
     "matlab_back": "back",
     "matlab_forward": "forward",
     "matlab_view_2": "view2",
@@ -166,6 +181,8 @@ _MENU_ICON_BY_METHOD = {
     "matlab_link_x": "link_x",
     "matlab_link_y": "link_y",
     "matlab_link_xy": "link_xy",
+    "matlab_export_csv": "csv",
+    "matlab_export_json": "json",
     "matlab_selected_visibility": "visibility",
     "matlab_clear_selection": "clear_selection",
     "matlab_delete_selected": "delete",
@@ -178,6 +195,7 @@ _MENU_ICON_BY_LABEL = {
     "Axis": "axis",
     "Display": "display",
     "Link Axes": "link",
+    "Export Data": "export",
     "Selection": "selection",
 }
 _SELECTION_REQUIRED_LABELS = {"Marker", "Line Style", "Color"}
@@ -395,12 +413,22 @@ def draw_menu_icon_on_axes(ax, kind: str, *, disabled: bool = False) -> None:
     elif kind == "home":
         add_line([left, cx, right], [cy, top, cy])
         add_line([0.32, 0.32, 0.68, 0.68], [cy, bottom, bottom, cy])
+    elif kind == "auto_view":
+        draw_box()
+        add_line([0.30, 0.70], [cy, cy], color=accent)
+        add_line([cx, cx], [0.34, 0.66], color=accent)
     elif kind == "back":
         add_line([right, left, right], [top, cy, bottom], width=1.2)
     elif kind == "forward":
         add_line([left, right, left], [top, cy, bottom], width=1.2)
     elif kind == "hold":
         add_text(cx, cy, "H", size=8)
+    elif kind == "export":
+        add_line([0.30, 0.70], [0.34, 0.34], color=accent)
+        add_line([cx, cx], [0.68, 0.40], color=accent)
+        add_line([0.39, cx, 0.61], [0.51, 0.38, 0.51], color=accent)
+    elif kind in {"csv", "json"}:
+        add_text(cx, cy, "C" if kind == "csv" else "J", size=8, color=accent)
 
 
 class MatplotlibContextMenuActions:
@@ -415,9 +443,18 @@ class MatplotlibContextMenuActions:
         "black": (0.0, 0.0, 0.0),
     }
 
-    def __init__(self, bridge: MatplotlibEventBridge | None, plotter: MatplotlibAxesPlotter) -> None:
+    def __init__(
+        self,
+        bridge: MatplotlibEventBridge | None,
+        plotter: MatplotlibAxesPlotter,
+        *,
+        export_path_provider: Callable[[str, Any], str | Path | None] | None = None,
+    ) -> None:
         self.bridge = bridge
         self.plotter = plotter
+        self.export_path_provider = export_path_provider
+        self.last_export_path: Path | None = None
+        self.last_export_error: str | None = None
 
     def set_bridge(self, bridge: MatplotlibEventBridge) -> None:
         self.bridge = bridge
@@ -450,6 +487,12 @@ class MatplotlibContextMenuActions:
 
     def matlab_home(self, *_args) -> None:
         self.plotter.home()
+
+    def matlab_auto_view(self, *_args) -> None:
+        axes = self.plotter.active_axes
+        if axes is not None:
+            self._enable_axes_autoscale(axes)
+        self.plotter.axis("tight")
 
     def matlab_back(self, *_args) -> None:
         self.plotter.back()
@@ -526,6 +569,12 @@ class MatplotlibContextMenuActions:
     def matlab_link_xy(self, *_args) -> None:
         self.plotter.toggle_link_xy_axes()
 
+    def matlab_export_csv(self, *_args) -> Path | None:
+        return self.export_data("csv")
+
+    def matlab_export_json(self, *_args) -> Path | None:
+        return self.export_data("json")
+
     def matlab_marker_none(self, *_args) -> None:
         self._set_line_property("marker", "None")
 
@@ -594,6 +643,426 @@ class MatplotlibContextMenuActions:
 
     def matlab_delete_selected(self, *_args) -> None:
         self.plotter.delete_selected()
+
+    def _enable_axes_autoscale(self, axes: Any) -> None:
+        setters = (
+            ("set_autoscale_on", True),
+            ("set_autoscalex_on", True),
+            ("set_autoscaley_on", True),
+            ("set_autoscalez_on", True),
+        )
+        for name, value in setters:
+            setter = getattr(axes, name, None)
+            if callable(setter):
+                setter(value)
+
+    def export_data(self, fmt: str, path: str | Path | None = None, axes: Any = None) -> Path | None:
+        self.last_export_error = None
+        self.last_export_path = None
+        fmt = fmt.lower().strip()
+        if fmt not in {"csv", "json"}:
+            raise ValueError("export format must be 'csv' or 'json'")
+        axes = axes if axes is not None else self.plotter.active_axes
+        if axes is None:
+            self.last_export_error = "No active axes to export."
+            return None
+        data = self.collect_axes_data(axes)
+        if not data["artists"]:
+            self.last_export_error = "No visible plotted data to export."
+            return None
+        export_path = self._resolve_export_path(fmt, path, axes)
+        if export_path is None:
+            self.last_export_error = "No export path selected."
+            return None
+        export_path.parent.mkdir(parents=True, exist_ok=True)
+        if fmt == "csv":
+            self._write_csv(export_path, data)
+        else:
+            export_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.last_export_path = export_path
+        return export_path
+
+    def collect_axes_data(self, axes: Any) -> dict[str, Any]:
+        artists: list[dict[str, Any]] = []
+        for index, line in enumerate(getattr(axes, "lines", []) or []):
+            payload = self._line_payload(line, index)
+            if payload is not None:
+                artists.append(payload)
+        for index, collection in enumerate(getattr(axes, "collections", []) or []):
+            payload = self._collection_payload(collection, index)
+            if payload is not None:
+                artists.append(payload)
+        for index, image in enumerate(getattr(axes, "images", []) or []):
+            payload = self._image_payload(image, index)
+            if payload is not None:
+                artists.append(payload)
+        for index, patch in enumerate(getattr(axes, "patches", []) or []):
+            payload = self._patch_payload(patch, index)
+            if payload is not None:
+                artists.append(payload)
+        title = ""
+        get_title = getattr(axes, "get_title", None)
+        if callable(get_title):
+            title = str(get_title())
+        return {"axes_title": title, "artist_count": len(artists), "artists": artists}
+
+    def _resolve_export_path(self, fmt: str, path: str | Path | None, axes: Any) -> Path | None:
+        if path is None and self.export_path_provider is not None:
+            provided = self.export_path_provider(fmt, axes)
+            if provided is None:
+                return None
+            path = provided
+        if path is None:
+            path, attempted = self._qt_save_file_path(fmt, axes)
+            if attempted and path is None:
+                self.last_export_error = "Save dialog was cancelled."
+                return None
+        if path is None:
+            path, attempted = self._tk_save_file_path(fmt)
+            if attempted and path is None:
+                self.last_export_error = "Save dialog was cancelled."
+                return None
+        if path is None:
+            self.last_export_error = "No GUI save dialog is available."
+            return None
+        export_path = Path(path)
+        if export_path.suffix.lower() != f".{fmt}":
+            export_path = export_path.with_suffix(f".{fmt}")
+        return export_path
+
+    def _default_export_path(self, fmt: str) -> Path:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return Path.cwd() / f"py_matlab_style_plotter_export_{stamp}.{fmt}"
+
+    def _qt_save_file_path(self, fmt: str, axes: Any) -> tuple[Path | None, bool]:
+        QtWidgets = self._qt_widgets_module()
+        if QtWidgets is None:
+            return None, False
+        app = QtWidgets.QApplication.instance()
+        figure = getattr(axes, "figure", None)
+        canvas = getattr(figure, "canvas", None)
+        parent = canvas if isinstance(canvas, QtWidgets.QWidget) else None
+        if app is None and parent is None:
+            return None, False
+        default_path = self._default_export_path(fmt)
+        if fmt == "csv":
+            file_filter = "CSV files (*.csv);;All files (*)"
+            title = "Export Plot Data as CSV"
+        else:
+            file_filter = "JSON files (*.json);;All files (*)"
+            title = "Export Plot Data as JSON"
+        try:
+            selected, _selected_filter = QtWidgets.QFileDialog.getSaveFileName(
+                parent,
+                title,
+                str(default_path),
+                file_filter,
+            )
+        except Exception:
+            return None, False
+        return (Path(selected) if selected else None), True
+
+    def _tk_save_file_path(self, fmt: str) -> tuple[Path | None, bool]:
+        try:
+            tkinter = importlib.import_module("tkinter")
+            filedialog = importlib.import_module("tkinter.filedialog")
+        except Exception:
+            return None, False
+        default_path = self._default_export_path(fmt)
+        filetypes = [("CSV files", "*.csv"), ("All files", "*")] if fmt == "csv" else [("JSON files", "*.json"), ("All files", "*")]
+        title = "Export Plot Data as CSV" if fmt == "csv" else "Export Plot Data as JSON"
+        root = None
+        try:
+            root = tkinter.Tk()
+            root.withdraw()
+            try:
+                root.attributes("-topmost", True)
+            except Exception:
+                pass
+            selected = filedialog.asksaveasfilename(
+                parent=root,
+                title=title,
+                initialdir=str(default_path.parent),
+                initialfile=default_path.name,
+                defaultextension=f".{fmt}",
+                filetypes=filetypes,
+            )
+        except Exception:
+            return None, False
+        finally:
+            if root is not None:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+        return (Path(selected) if selected else None), True
+
+    def _qt_widgets_module(self) -> Any | None:
+        for module_name in (
+            "PySide6.QtWidgets",
+            "PyQt6.QtWidgets",
+            "PyQt5.QtWidgets",
+            "PySide2.QtWidgets",
+        ):
+            module = sys.modules.get(module_name)
+            if module is not None:
+                return module
+        try:
+            from matplotlib.backends.qt_compat import QtWidgets
+
+            return QtWidgets
+        except Exception:
+            pass
+        for module_name in (
+            "PySide6.QtWidgets",
+            "PyQt6.QtWidgets",
+            "PyQt5.QtWidgets",
+            "PySide2.QtWidgets",
+        ):
+            try:
+                return importlib.import_module(module_name)
+            except Exception:
+                continue
+        return None
+
+    def _line_payload(self, line: Any, index: int) -> dict[str, Any] | None:
+        if not self._exportable_artist(line):
+            return None
+        data_3d = self._line_data_3d(line)
+        if data_3d is not None:
+            x_values, y_values, z_values = data_3d
+        else:
+            data = self.plotter.get_original_data(line)
+            if data is None:
+                get_xdata = getattr(line, "get_xdata", None)
+                get_ydata = getattr(line, "get_ydata", None)
+                if not callable(get_xdata) or not callable(get_ydata):
+                    return None
+                data = (get_xdata(), get_ydata())
+            x_values, y_values = data[:2]
+            z_values = None
+        points = self._points_from_columns(x=x_values, y=y_values, z=z_values)
+        if not points:
+            return None
+        return {"type": "line", "index": index, "label": self._artist_label(line), "points": points}
+
+    def _line_data_3d(self, line: Any) -> tuple[Any, Any, Any] | None:
+        get_data_3d = getattr(line, "get_data_3d", None)
+        if callable(get_data_3d):
+            try:
+                data = get_data_3d()
+            except (TypeError, ValueError):
+                data = None
+            if data is not None and len(data) >= 3:
+                return data[0], data[1], data[2]
+        get_zdata = getattr(line, "get_zdata", None)
+        if not callable(get_zdata):
+            return None
+        try:
+            z_values = get_zdata()
+            get_xdata = getattr(line, "get_xdata", None)
+            get_ydata = getattr(line, "get_ydata", None)
+            if not callable(get_xdata) or not callable(get_ydata):
+                return None
+            return get_xdata(), get_ydata(), z_values
+        except (TypeError, ValueError):
+            return None
+
+    def _collection_payload(self, collection: Any, index: int) -> dict[str, Any] | None:
+        if not self._exportable_artist(collection):
+            return None
+        offsets3d = getattr(collection, "_offsets3d", None)
+        if offsets3d is not None and len(offsets3d) >= 3:
+            points = self._points_from_columns(x=offsets3d[0], y=offsets3d[1], z=offsets3d[2])
+        else:
+            get_offsets = getattr(collection, "get_offsets", None)
+            if not callable(get_offsets):
+                return None
+            try:
+                offsets = get_offsets()
+            except (TypeError, ValueError):
+                return None
+            rows = self._as_rows(offsets)
+            points = [
+                {"point_index": point_index, "x": row[0], "y": row[1]}
+                for point_index, row in enumerate(rows)
+                if len(row) >= 2
+            ]
+        values = self._artist_array(collection)
+        if values:
+            for point, value in zip(points, values):
+                point["value"] = value
+        if not points:
+            return None
+        return {"type": "collection", "index": index, "label": self._artist_label(collection), "points": points}
+
+    def _image_payload(self, image: Any, index: int) -> dict[str, Any] | None:
+        if not self._exportable_artist(image):
+            return None
+        get_array = getattr(image, "get_array", None)
+        if not callable(get_array):
+            return None
+        try:
+            array = get_array()
+        except (TypeError, ValueError):
+            return None
+        rows = self._as_rows(array)
+        if not rows:
+            return None
+        extent = None
+        get_extent = getattr(image, "get_extent", None)
+        if callable(get_extent):
+            try:
+                extent = self._to_json_value(get_extent())
+            except (TypeError, ValueError):
+                extent = None
+        points = []
+        for row_index, row in enumerate(rows):
+            for column_index, value in enumerate(row):
+                points.append({"row": row_index, "column": column_index, "value": value})
+        return {
+            "type": "image",
+            "index": index,
+            "label": self._artist_label(image),
+            "extent": extent,
+            "points": points,
+        }
+
+    def _patch_payload(self, patch: Any, index: int) -> dict[str, Any] | None:
+        if not self._exportable_artist(patch):
+            return None
+        get_xy = getattr(patch, "get_xy", None)
+        get_width = getattr(patch, "get_width", None)
+        get_height = getattr(patch, "get_height", None)
+        if not callable(get_xy) or not callable(get_width) or not callable(get_height):
+            return None
+        try:
+            xy = self._to_json_value(get_xy())
+            width = self._to_json_value(get_width())
+            height = self._to_json_value(get_height())
+        except (TypeError, ValueError):
+            return None
+        return {
+            "type": "patch",
+            "index": index,
+            "label": self._artist_label(patch),
+            "points": [{"point_index": 0, "x": xy[0], "y": xy[1], "width": width, "height": height}],
+        }
+
+    def _write_csv(self, path: Path, data: dict[str, Any]) -> None:
+        fields = [
+            "artist_type",
+            "artist_index",
+            "label",
+            "point_index",
+            "x",
+            "y",
+            "z",
+            "row",
+            "column",
+            "value",
+            "width",
+            "height",
+        ]
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            for artist in data["artists"]:
+                for point in artist.get("points", []):
+                    writer.writerow(
+                        {
+                            "artist_type": artist["type"],
+                            "artist_index": artist["index"],
+                            "label": artist.get("label", ""),
+                            "point_index": point.get("point_index", ""),
+                            "x": point.get("x", ""),
+                            "y": point.get("y", ""),
+                            "z": point.get("z", ""),
+                            "row": point.get("row", ""),
+                            "column": point.get("column", ""),
+                            "value": point.get("value", ""),
+                            "width": point.get("width", ""),
+                            "height": point.get("height", ""),
+                        }
+                    )
+
+    def _points_from_columns(self, **columns: Any) -> list[dict[str, Any]]:
+        values = {name: self._as_flat_list(value) for name, value in columns.items() if value is not None}
+        if "x" not in values or "y" not in values:
+            return []
+        lengths = [len(values["x"]), len(values["y"]), *(len(value) for name, value in values.items() if name not in {"x", "y"})]
+        count = min(lengths)
+        points = []
+        for point_index in range(count):
+            point = {"point_index": point_index}
+            for name, value in values.items():
+                point[name] = value[point_index]
+            points.append(point)
+        return points
+
+    def _artist_array(self, artist: Any) -> list[Any]:
+        get_array = getattr(artist, "get_array", None)
+        if not callable(get_array):
+            return []
+        try:
+            return self._as_flat_list(get_array())
+        except (TypeError, ValueError):
+            return []
+
+    def _as_flat_list(self, value: Any) -> list[Any]:
+        if hasattr(value, "compressed"):
+            value = value.compressed()
+        if hasattr(value, "ravel"):
+            value = value.ravel()
+        return [self._to_json_value(item) for item in list(value)]
+
+    def _as_rows(self, value: Any) -> list[list[Any]]:
+        if hasattr(value, "tolist"):
+            value = value.tolist()
+        if not isinstance(value, list):
+            value = list(value)
+        rows = []
+        for row in value:
+            if hasattr(row, "tolist"):
+                row = row.tolist()
+            if isinstance(row, (list, tuple)):
+                rows.append([self._to_json_value(item) for item in row])
+            else:
+                rows.append([self._to_json_value(row)])
+        return rows
+
+    def _to_json_value(self, value: Any) -> Any:
+        if hasattr(value, "item"):
+            value = value.item()
+        if isinstance(value, tuple):
+            return [self._to_json_value(item) for item in value]
+        if isinstance(value, list):
+            return [self._to_json_value(item) for item in value]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+
+    def _artist_label(self, artist: Any) -> str:
+        get_label = getattr(artist, "get_label", None)
+        if not callable(get_label):
+            return ""
+        label = str(get_label())
+        return "" if label.startswith("_") else label
+
+    def _exportable_artist(self, artist: Any) -> bool:
+        if not self._artist_visible(artist):
+            return False
+        get_label = getattr(artist, "get_label", None)
+        if not callable(get_label):
+            return True
+        label = str(get_label())
+        return not label.startswith(("_matlab", "_py_matlab"))
+
+    def _artist_visible(self, artist: Any) -> bool:
+        get_visible = getattr(artist, "get_visible", None)
+        if not callable(get_visible):
+            return True
+        return bool(get_visible())
 
     def _set_line_property(self, name, value):
         lines = self._target_lines()
@@ -938,12 +1407,22 @@ class MatplotlibContextMenu:
         elif kind == "home":
             self._add_line([left, cx, right], [y, top, y], color="#202020", width=1.0, z=z)
             self._add_line([left + width * 0.10, left + width * 0.10, right - width * 0.10, right - width * 0.10], [y, bottom, bottom, y], color="#202020", width=1.0, z=z)
+        elif kind == "auto_view":
+            self._draw_outline_box(x, y, width, height, z)
+            self._add_line([cx - width * 0.20, cx + width * 0.20], [y, y], color=accent, width=1.0, z=z)
+            self._add_line([cx, cx], [y - height * 0.18, y + height * 0.18], color=accent, width=1.0, z=z)
         elif kind == "back":
             self._add_line([right, left, right], [top, y, bottom], color="#202020", width=1.2, z=z)
         elif kind == "forward":
             self._add_line([left, right, left], [top, y, bottom], color="#202020", width=1.2, z=z)
         elif kind == "hold":
             self._add_text(cx, y, "H", ha="center", size=8, color="#202020", z=z)
+        elif kind == "export":
+            self._add_line([cx - width * 0.20, cx + width * 0.20], [y - height * 0.18, y - height * 0.18], color=accent, width=1.0, z=z)
+            self._add_line([cx, cx], [y + height * 0.20, y - height * 0.06], color=accent, width=1.0, z=z)
+            self._add_line([cx - width * 0.10, cx, cx + width * 0.10], [y + height * 0.04, y - height * 0.08, y + height * 0.04], color=accent, width=1.0, z=z)
+        elif kind in {"csv", "json"}:
+            self._add_text(cx, y, "C" if kind == "csv" else "J", ha="center", size=8, color=accent, z=z)
 
     def _draw_marker_icon(self, kind: str, x: float, y: float, z: int, *, disabled: bool = False) -> None:
         color = "#9a9a9a" if disabled else "#0072BD"
