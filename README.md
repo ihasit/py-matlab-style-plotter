@@ -48,7 +48,7 @@ includes the Matplotlib adapter and event bridge.
 The package version is defined in `pyproject.toml`:
 
 ```toml
-version = "0.2.7"
+version = "0.2.8"
 ```
 
 Use semantic versioning:
@@ -62,10 +62,10 @@ change, and create a matching Git tag:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.2.7"
-git tag -a v0.2.7 -m "Release v0.2.7"
+git commit -m "Release v0.2.8"
+git tag -a v0.2.8 -m "Release v0.2.8"
 git push origin main
-git push origin v0.2.7
+git push origin v0.2.8
 ```
 
 Other projects should pin a tag instead of tracking `main`:
@@ -73,7 +73,7 @@ Other projects should pin a tag instead of tracking `main`:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.2.7",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.2.8",
 ]
 ```
 
@@ -129,6 +129,7 @@ The demo includes:
 - selected line highlighting
 - home/back/forward view history
 - Auto View and CSV/JSON data export from the right-click menu
+- colorbar scale and colormap controls from the right-click menu
 - keyboard shortcuts and linked axes controls
 
 See [docs/USAGE.md](docs/USAGE.md) for the full usage guide and shortcut list.

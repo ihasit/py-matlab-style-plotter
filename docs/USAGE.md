@@ -24,7 +24,7 @@ For local commands without installation, set `PYTHONPATH=src`.
 The release version is managed in `pyproject.toml`:
 
 ```toml
-version = "0.2.7"
+version = "0.2.8"
 ```
 
 Use semantic versioning:
@@ -37,10 +37,10 @@ Recommended release flow:
 
 ```bash
 python -m unittest discover -s tests
-git commit -m "Release v0.2.7"
-git tag -a v0.2.7 -m "Release v0.2.7"
+git commit -m "Release v0.2.8"
+git tag -a v0.2.8 -m "Release v0.2.8"
 git push origin main
-git push origin v0.2.7
+git push origin v0.2.8
 ```
 
 On GitHub, pushing a `v*` tag triggers `.github/workflows/release.yml`. The
@@ -53,7 +53,7 @@ workflow:
 - uploads `dist/*` as release assets
 
 The generated wheel is universal for this pure-Python package, for example
-`py_matlab_style_plotter-0.2.7-py3-none-any.whl`.
+`py_matlab_style_plotter-0.2.8-py3-none-any.whl`.
 
 Do not commit generated package artifacts. `.gitignore` excludes `dist/`,
 `build/`, `*.egg-info/`, and `*.whl`; GitHub Actions should recreate them for
@@ -70,7 +70,7 @@ For reproducible project dependencies, pin a Git tag:
 ```toml
 [project]
 dependencies = [
-    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.2.7",
+    "py-matlab-style-plotter @ git+file:///Users/ltk/Codes/tools/pyMatlabStylePlotter@v0.2.8",
 ]
 ```
 
@@ -304,6 +304,8 @@ The menu includes:
 - axis controls: Auto, Manual, Tight, Equal, Fill, Image, Normal, Square,
   Vis3D, On/Off, IJ/XY
 - display controls: Hold, Grid, Legend, Box, Colorbar
+- color scale controls: automatic color limits, manual color limits, and common
+  colormaps
 - link axes: Link X, Link Y, Link X/Y
 - selection: Hide Selected, Clear Selection, Delete
 

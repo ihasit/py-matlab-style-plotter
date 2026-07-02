@@ -103,6 +103,25 @@ _MATLAB_MENU_ITEMS = (
         ),
     ),
     (
+        "Color Scale",
+        (
+            ("Auto Limits", "matlab_clim_auto"),
+            ("Set Limits...", "matlab_clim_set"),
+            None,
+            (
+                "Colormap",
+                (
+                    ("Viridis", "matlab_colormap_viridis"),
+                    ("Plasma", "matlab_colormap_plasma"),
+                    ("Gray", "matlab_colormap_gray"),
+                    ("Hot", "matlab_colormap_hot"),
+                    ("Jet", "matlab_colormap_jet"),
+                    ("Turbo", "matlab_colormap_turbo"),
+                ),
+            ),
+        ),
+    ),
+    (
         "Link Axes",
         (
             ("Link X", "matlab_link_x"),
@@ -178,6 +197,14 @@ _MENU_ICON_BY_METHOD = {
     "matlab_legend": "legend",
     "matlab_box": "box",
     "matlab_colorbar": "colorbar",
+    "matlab_clim_auto": "colorbar",
+    "matlab_clim_set": "axis_manual",
+    "matlab_colormap_viridis": "color_viridis",
+    "matlab_colormap_plasma": "color_plasma",
+    "matlab_colormap_gray": "color_gray",
+    "matlab_colormap_hot": "color_hot",
+    "matlab_colormap_jet": "color_jet",
+    "matlab_colormap_turbo": "color_turbo",
     "matlab_link_x": "link_x",
     "matlab_link_y": "link_y",
     "matlab_link_xy": "link_xy",
@@ -194,11 +221,14 @@ _MENU_ICON_BY_LABEL = {
     "View": "view",
     "Axis": "axis",
     "Display": "display",
+    "Color Scale": "colorbar",
+    "Colormap": "color",
     "Link Axes": "link",
     "Export Data": "export",
     "Selection": "selection",
 }
 _SELECTION_REQUIRED_LABELS = {"Marker", "Line Style", "Color"}
+_MAPPABLE_REQUIRED_LABELS = {"Color Scale", "Colormap"}
 _MODE_BY_METHOD = {
     "matlab_none": "none",
     "matlab_pan": "pan",
@@ -234,6 +264,14 @@ _COLOR_BY_METHOD = {
     "matlab_color_red": "red",
     "matlab_color_black": "black",
 }
+_COLORMAP_BY_METHOD = {
+    "matlab_colormap_viridis": "viridis",
+    "matlab_colormap_plasma": "plasma",
+    "matlab_colormap_gray": "gray",
+    "matlab_colormap_hot": "hot",
+    "matlab_colormap_jet": "jet",
+    "matlab_colormap_turbo": "turbo",
+}
 _COLOR_ICON_BY_KIND = {
     "color_blue": "#0072BD",
     "color_orange": "#D95319",
@@ -243,6 +281,12 @@ _COLOR_ICON_BY_KIND = {
     "color_cyan": "#4DBEEE",
     "color_red": "#A2142F",
     "color_black": "#000000",
+    "color_viridis": "#440154",
+    "color_plasma": "#9C179E",
+    "color_gray": "#808080",
+    "color_hot": "#FF6A00",
+    "color_jet": "#0072BD",
+    "color_turbo": "#24A884",
 }
 _MARKER_ICON_BY_KIND = {
     "marker_circle": "o",
@@ -489,10 +533,7 @@ class MatplotlibContextMenuActions:
         self.plotter.home()
 
     def matlab_auto_view(self, *_args) -> None:
-        axes = self.plotter.active_axes
-        if axes is not None:
-            self._enable_axes_autoscale(axes)
-        self.plotter.axis("tight")
+        self.plotter.auto_view()
 
     def matlab_back(self, *_args) -> None:
         self.plotter.back()
@@ -559,6 +600,55 @@ class MatplotlibContextMenuActions:
 
     def matlab_colorbar(self, *_args) -> None:
         self.plotter.colorbar("toggle")
+
+    def matlab_clim_auto(self, *_args) -> None:
+        self.plotter.clim("auto")
+
+    def matlab_clim_set(self, *_args) -> None:
+        axes = self.plotter.active_axes
+        if axes is None:
+            return
+        current = self.plotter.clim()
+        initial = "" if current is None else f"{current[0]}, {current[1]}"
+        text = self._prompt_text("Set Color Limits", "Enter color limits as min,max:", initial)
+        if text is None:
+            return
+        limits = self._parse_clim_text(text)
+        if limits is None:
+            return
+        self.plotter.clim(limits)
+        self._set_mappable_clim(axes, limits)
+
+    def _set_mappable_clim(self, axes: Any, limits: tuple[float, float]) -> None:
+        for artist in [*getattr(axes, "images", []), *getattr(axes, "collections", [])]:
+            set_clim = getattr(artist, "set_clim", None)
+            if callable(set_clim):
+                set_clim(*limits)
+        self.plotter._draw_idle(axes)
+
+    def matlab_colormap_viridis(self, *_args) -> None:
+        self._set_colormap("viridis")
+
+    def matlab_colormap_plasma(self, *_args) -> None:
+        self._set_colormap("plasma")
+
+    def matlab_colormap_gray(self, *_args) -> None:
+        self._set_colormap("gray")
+
+    def matlab_colormap_hot(self, *_args) -> None:
+        self._set_colormap("hot")
+
+    def matlab_colormap_jet(self, *_args) -> None:
+        self._set_colormap("jet")
+
+    def matlab_colormap_turbo(self, *_args) -> None:
+        self._set_colormap("turbo")
+
+    def _set_colormap(self, name: str) -> None:
+        axes = self.plotter.active_axes
+        if axes is None:
+            return
+        self.plotter.colormap(name, axes=axes)
 
     def matlab_link_x(self, *_args) -> None:
         self.plotter.toggle_link_x_axes()
@@ -644,17 +734,64 @@ class MatplotlibContextMenuActions:
     def matlab_delete_selected(self, *_args) -> None:
         self.plotter.delete_selected()
 
-    def _enable_axes_autoscale(self, axes: Any) -> None:
-        setters = (
-            ("set_autoscale_on", True),
-            ("set_autoscalex_on", True),
-            ("set_autoscaley_on", True),
-            ("set_autoscalez_on", True),
-        )
-        for name, value in setters:
-            setter = getattr(axes, name, None)
-            if callable(setter):
-                setter(value)
+    def _parse_clim_text(self, text: str) -> tuple[float, float] | None:
+        parts = [part.strip() for part in text.replace(";", ",").split(",") if part.strip()]
+        if len(parts) != 2:
+            return None
+        try:
+            lo, hi = (float(parts[0]), float(parts[1]))
+        except ValueError:
+            return None
+        if lo == hi:
+            return None
+        return lo, hi
+
+    def _prompt_text(self, title: str, label: str, initial: str = "") -> str | None:
+        text, attempted = self._qt_prompt_text(title, label, initial)
+        if attempted:
+            return text
+        text, attempted = self._tk_prompt_text(title, label, initial)
+        if attempted:
+            return text
+        return None
+
+    def _qt_prompt_text(self, title: str, label: str, initial: str = "") -> tuple[str | None, bool]:
+        QtWidgets = self._qt_widgets_module()
+        if QtWidgets is None:
+            return None, False
+        app = QtWidgets.QApplication.instance()
+        if app is None:
+            return None, False
+        try:
+            text, ok = QtWidgets.QInputDialog.getText(None, title, label, text=initial)
+        except Exception:
+            return None, False
+        return (str(text) if ok else None), True
+
+    def _tk_prompt_text(self, title: str, label: str, initial: str = "") -> tuple[str | None, bool]:
+        try:
+            tkinter = importlib.import_module("tkinter")
+            simpledialog = importlib.import_module("tkinter.simpledialog")
+        except Exception:
+            return None, False
+        root = None
+        try:
+            root = tkinter.Tk()
+            root.withdraw()
+            try:
+                root.attributes("-topmost", True)
+            except Exception:
+                pass
+            text = simpledialog.askstring(title, label, initialvalue=initial, parent=root)
+        except Exception:
+            return None, False
+        finally:
+            if root is not None:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+        return text, True
 
     def export_data(self, fmt: str, path: str | Path | None = None, axes: Any = None) -> Path | None:
         self.last_export_error = None
@@ -1507,6 +1644,9 @@ class MatplotlibContextMenu:
         color_name = _COLOR_BY_METHOD.get(method_name)
         if color_name is not None:
             return self._selected_lines_have_value("get_color", self.actions._COLORS[color_name], self._normalize_color)
+        colormap_name = _COLORMAP_BY_METHOD.get(method_name)
+        if colormap_name is not None:
+            return self._current_colormap_name() == colormap_name
         return False
 
     def _display_or_link_checked(self, method_name: str) -> bool | None:
@@ -1560,7 +1700,28 @@ class MatplotlibContextMenu:
     def _is_disabled_item(self, label: str, action_or_submenu) -> bool:
         if label in _SELECTION_REQUIRED_LABELS and not self.plotter.selected_lines:
             return True
+        if label in _MAPPABLE_REQUIRED_LABELS and not self._has_mappable(self.plotter.active_axes):
+            return True
         return False
+
+    def _has_mappable(self, axes: Any) -> bool:
+        if axes is None:
+            return False
+        return bool(getattr(axes, "images", []) or getattr(axes, "collections", []))
+
+    def _current_colormap_name(self) -> str | None:
+        axes = self.plotter.active_axes
+        if axes is None:
+            return None
+        for artist in [*getattr(axes, "images", []), *getattr(axes, "collections", [])]:
+            get_cmap = getattr(artist, "get_cmap", None)
+            if not callable(get_cmap):
+                continue
+            cmap = get_cmap()
+            name = getattr(cmap, "name", None)
+            if name:
+                return str(name).lower()
+        return None
 
     def _menu_width(self, entries) -> float:
         labels = [item[0] for item in entries if item is not None]

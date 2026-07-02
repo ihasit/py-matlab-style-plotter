@@ -3315,6 +3315,10 @@ class MatlabLikeAxesBase:
             return
         raise ValueError(f"Unsupported axis value: {original_value!r}")
 
+    def auto_view(self) -> None:
+        """Fit the active axes to plotted data like the context-menu Auto View action."""
+        self.axis("tight")
+
     def xdir(self, value: AxisDirection | str | None = None) -> AxisDirection | None:
         return self._axis_direction_property("x", value)
 
@@ -4917,7 +4921,7 @@ class MatlabLikeAxesBase:
         self.set_active_axes(event.axes)
         button = event.normalized_button()
         if event.dblclick and button == MouseButton.LEFT:
-            self.home()
+            self.auto_view()
             return
         if self.mode == InteractionMode.PAN:
             if button != MouseButton.LEFT:

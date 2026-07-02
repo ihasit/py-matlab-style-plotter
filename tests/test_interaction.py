@@ -4195,7 +4195,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         self.assertEqual(first_limits, AxesLimits((-1.0, 9.0), (-1.5, 0.5)))
         self.assertEqual(axes.limits, first_limits)
 
-    def test_left_double_click_homes_and_does_not_start_tool_drag(self):
+    def test_left_double_click_auto_views_and_does_not_start_tool_drag(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
         plotter.push_current_view()
@@ -4206,11 +4206,13 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.on_mouse_move(PointerEvent(axes=axes, xdata=3.0, ydata=0.5, button=MouseButton.LEFT))
         plotter.on_mouse_release(PointerEvent(axes=axes, xdata=3.0, ydata=0.5, button=MouseButton.LEFT))
 
-        self.assertEqual(axes.limits, AxesLimits((0.0, 10.0), (-1.0, 1.0)))
+        self.assertEqual(axes.autoscale_calls, [True])
+        self.assertEqual(plotter.xlim_mode, "auto")
+        self.assertEqual(plotter.ylim_mode, "auto")
         self.assertIsNone(plotter._drag)
         self.assertEqual(plotter.action_events, [])
 
-    def test_non_left_double_click_does_not_home(self):
+    def test_non_left_double_click_does_not_auto_view(self):
         axes = FakeAxes()
         plotter = FakePlotter(axes)
         plotter.push_current_view()
@@ -4219,6 +4221,7 @@ class MatlabLikeAxesBaseTest(unittest.TestCase):
         plotter.on_mouse_press(PointerEvent(axes=axes, button=MouseButton.RIGHT, dblclick=True))
 
         self.assertEqual(axes.limits, AxesLimits((1.0, 2.0), (-1.0, 1.0)))
+        self.assertEqual(axes.autoscale_calls, [])
 
     def test_pan_drag_on_log_axes_moves_limits_by_ratio(self):
         axes = FakeAxes()

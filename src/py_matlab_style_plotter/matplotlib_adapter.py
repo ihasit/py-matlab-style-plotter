@@ -793,6 +793,24 @@ class MatplotlibAxesPlotter(MatlabLikeAxesBase):
         axes.autoscale_view(tight=tight)
         self._draw_idle(axes)
 
+    def auto_view(self) -> None:
+        axes = self.active_axes
+        if axes is not None:
+            self._enable_axes_autoscale(axes)
+        super().auto_view()
+
+    def _enable_axes_autoscale(self, axes: Any) -> None:
+        setters = (
+            ("set_autoscale_on", True),
+            ("set_autoscalex_on", True),
+            ("set_autoscaley_on", True),
+            ("set_autoscalez_on", True),
+        )
+        for name, value in setters:
+            setter = getattr(axes, name, None)
+            if callable(setter):
+                setter(value)
+
     def _restore_decimated_lines(self, axes: Any) -> None:
         managed = getattr(axes, "_pmsp_decimated_lines", None)
         if not managed:
